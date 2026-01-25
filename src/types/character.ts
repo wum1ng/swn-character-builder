@@ -172,9 +172,10 @@ export interface Character {
 }
 
 // Character creation state
-export type CreationStep = 
+export type CreationStep =
   | 'attributes'
   | 'background'
+  | 'backgroundSkills'
   | 'class'
   | 'foci'
   | 'skills'

@@ -6,9 +6,11 @@
   import { characterStore } from '$stores/character.svelte';
   import AttributesStep from '$lib/components/steps/AttributesStep.svelte';
   import BackgroundStep from '$lib/components/steps/BackgroundStep.svelte';
+  import BackgroundSkillsStep from '$lib/components/steps/BackgroundSkillsStep.svelte';
   import ClassStep from '$lib/components/steps/ClassStep.svelte';
   import FociStep from '$lib/components/steps/FociStep.svelte';
   import SkillsStep from '$lib/components/steps/SkillsStep.svelte';
+  import PsychicStep from '$lib/components/steps/PsychicStep.svelte';
   import HitPointsStep from '$lib/components/steps/HitPointsStep.svelte';
   import EquipmentStep from '$lib/components/steps/EquipmentStep.svelte';
   import DetailsStep from '$lib/components/steps/DetailsStep.svelte';
@@ -17,6 +19,7 @@
   const stepLabels: Record<string, string> = {
     attributes: 'Attributes',
     background: 'Background',
+    backgroundSkills: 'Background Skills',
     class: 'Class',
     foci: 'Foci',
     skills: 'Skills',
@@ -140,12 +143,16 @@
       <AttributesStep />
     {:else if characterStore.draft.currentStep === 'background'}
       <BackgroundStep />
+    {:else if characterStore.draft.currentStep === 'backgroundSkills'}
+      <BackgroundSkillsStep />
     {:else if characterStore.draft.currentStep === 'class'}
       <ClassStep />
     {:else if characterStore.draft.currentStep === 'foci'}
       <FociStep />
     {:else if characterStore.draft.currentStep === 'skills'}
       <SkillsStep />
+    {:else if characterStore.draft.currentStep === 'psychic'}
+      <PsychicStep />
     {:else if characterStore.draft.currentStep === 'hitpoints'}
       <HitPointsStep />
     {:else if characterStore.draft.currentStep === 'equipment'}
