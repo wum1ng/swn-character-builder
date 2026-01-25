@@ -40,7 +40,7 @@
       } else if (skillId === 'any-skill') {
         // Will need to pick later
       } else {
-        characterStore.addSkill(skillId, 0);
+        characterStore.addFreeSkill(skillId);
       }
     }
     characterStore.draft.backgroundSkillMethod = 'pick';
@@ -104,16 +104,16 @@
           rolls[index] = { ...roll, applied: true, choice };
         }
       } else if (entry.type === 'skill') {
-        characterStore.addSkill(entry.value as string, 0);
+        characterStore.addFreeSkill(entry.value as string);
         rolls[index] = { ...roll, applied: true };
       } else if (entry.type === 'any_skill') {
         if (choice) {
-          characterStore.addSkill(choice, 0);
+          characterStore.addFreeSkill(choice);
           rolls[index] = { ...roll, applied: true, choice };
         }
       } else if (entry.type === 'any_combat') {
         if (choice) {
-          characterStore.addSkill(choice, 0);
+          characterStore.addFreeSkill(choice);
           rolls[index] = { ...roll, applied: true, choice };
         }
       }
@@ -125,7 +125,7 @@
         skillToAdd = choice;
       }
 
-      characterStore.addSkill(skillToAdd, 0);
+      characterStore.addFreeSkill(skillToAdd);
       rolls[index] = { ...roll, applied: true, choice };
     }
   }

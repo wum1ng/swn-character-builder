@@ -3,7 +3,7 @@ import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey,
 import { rollAllAttributes, createEmptyAttributes, getAttributeModifier, STANDARD_ARRAY } from '$data/attributes';
 import { BACKGROUNDS, getBackgroundById } from '$data/backgrounds';
 import { CLASSES } from '$data/classes';
-import { COMBAT_FOCI, NON_COMBAT_FOCI } from '$data/foci';
+import { COMBAT_FOCI, NON_COMBAT_FOCI, getFocusById } from '$data/foci';
 import { SKILLS, NON_COMBAT_SKILLS, COMBAT_SKILLS } from '$data/skills';
 import { EQUIPMENT_PACKAGES } from '$data/equipment';
 
@@ -267,11 +267,12 @@ class CharacterStore {
     // Add free skill from background
     const background = getBackgroundById(backgroundId);
     if (background) {
-      this.addSkill(background.freeSkill, 0);
+      this.addFreeSkill(background.freeSkill);
     }
   }
 
   // Skill actions
+  // addSkill adds a skill at a specific rank (used for explicit rank setting)
   addSkill(skillId: string, rank: number = 0) {
     const existing = this.draft.skills.find(s => s.skillId === skillId);
     if (existing) {
@@ -281,9 +282,20 @@ class CharacterStore {
     }
   }
 
+  // addFreeSkill adds a free skill that stacks - two free skills = level 1
+  addFreeSkill(skillId: string) {
+    const existing = this.draft.skills.find(s => s.skillId === skillId);
+    if (existing) {
+      // Stack: if already has the skill, increment rank (up to max 1 from free skills)
+      existing.rank = Math.min(existing.rank + 1, 1);
+    } else {
+      this.draft.skills.push({ skillId, rank: 0 });
+    }
+  }
+
   setHobbySkill(skillId: string) {
     this.draft.hobbySkill = skillId;
-    this.addSkill(skillId, 0);
+    this.addFreeSkill(skillId);
   }
 
   // Class actions
@@ -304,11 +316,17 @@ class CharacterStore {
       existing.level = level;
     } else {
       this.draft.selectedFoci.push({ focusId, level });
+      // Add bonus skill from focus level 1
+      const focus = getFocusById(focusId);
+      if (focus?.level1.bonusSkill) {
+        this.addFreeSkill(focus.level1.bonusSkill);
+      }
     }
   }
 
   removeFocus(focusId: string) {
     this.draft.selectedFoci = this.draft.selectedFoci.filter(f => f.focusId !== focusId);
+    // Note: We don't remove the skill as it may have been added from multiple sources
   }
 
   // Hit points
@@ -537,14 +555,14 @@ class CharacterStore {
     // 2. Pick random background
     const background = randomFrom(BACKGROUNDS);
     this.draft.backgroundId = background.id;
-    this.addSkill(background.freeSkill, 0);
+    this.addFreeSkill(background.freeSkill);
 
     // Add quick skills from background
     for (const skillId of background.quickSkills) {
       if (skillId === 'any-combat') {
-        this.addSkill(randomFrom(COMBAT_SKILLS), 0);
+        this.addFreeSkill(randomFrom(COMBAT_SKILLS));
       } else {
-        this.addSkill(skillId, 0);
+        this.addFreeSkill(skillId);
       }
     }
 
@@ -564,7 +582,7 @@ class CharacterStore {
     // 5. Add a hobby skill
     const availableHobbySkills = SKILLS.filter(s => !s.isPsychic).map(s => s.id);
     this.draft.hobbySkill = randomFrom(availableHobbySkills);
-    this.addSkill(this.draft.hobbySkill, 0);
+    this.addFreeSkill(this.draft.hobbySkill);
 
     // 6. Roll hit points
     this.rollHitPoints();
