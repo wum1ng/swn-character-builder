@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { characterStore } from '$stores/character.svelte';
   import AttributesStep from '$lib/components/steps/AttributesStep.svelte';
   import BackgroundStep from '$lib/components/steps/BackgroundStep.svelte';
@@ -47,7 +48,7 @@
   async function handleComplete() {
     const character = characterStore.buildCharacter();
     await characterStore.saveCharacter(character);
-    goto(`/`);
+    goto(`${base}/`);
   }
   
   $effect(() => {
