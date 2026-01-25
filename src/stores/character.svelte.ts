@@ -130,7 +130,8 @@ class CharacterStore {
   // Step navigation
   readonly steps: CreationStep[] = [
     'attributes',
-    'background', 
+    'background',
+    'backgroundSkills',
     'class',
     'foci',
     'skills',
@@ -166,7 +167,11 @@ class CharacterStore {
       
       case 'background':
         return !!this.draft.backgroundId;
-      
+
+      case 'backgroundSkills':
+        // Check that background skills step is complete (pickedSkills contains 'done')
+        return this.draft.pickedSkills.includes('done');
+
       case 'class':
         return !!this.draft.classId;
       

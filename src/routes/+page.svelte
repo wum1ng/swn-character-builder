@@ -1,20 +1,63 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
+  import { goto } from '$app/navigation';
   import { characterStore } from '$stores/character.svelte';
   import { getBackgroundById } from '$data/backgrounds';
   import { getClassById } from '$data/classes';
-  
+  import type { Character } from '$types/character';
+
+  let fileInput: HTMLInputElement;
+  let importError = $state<string | null>(null);
+
   onMount(() => {
     characterStore.loadCharacters();
   });
-  
+
   function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
     });
+  }
+
+  function triggerImport() {
+    fileInput?.click();
+  }
+
+  async function handleFileImport(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as Character;
+
+      // Validate required fields
+      if (!data.name || !data.attributes || !data.classId || !data.backgroundId) {
+        throw new Error('Invalid character file: missing required fields');
+      }
+
+      // Generate new ID to avoid conflicts
+      const character: Character = {
+        ...data,
+        id: crypto.randomUUID(),
+        createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      await characterStore.saveCharacter(character);
+      importError = null;
+      goto(`${base}/character/${character.id}`);
+    } catch (e) {
+      importError = e instanceof Error ? e.message : 'Failed to import character';
+      setTimeout(() => importError = null, 5000);
+    }
+
+    // Reset input
+    input.value = '';
   }
 </script>
 
@@ -47,7 +90,23 @@
         </svg>
         Random Character
       </a>
+      <button onclick={triggerImport} class="btn btn-ghost text-base px-8 py-4">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        Import JSON
+      </button>
+      <input
+        bind:this={fileInput}
+        type="file"
+        accept=".json,application/json"
+        onchange={handleFileImport}
+        class="hidden"
+      />
     </div>
+    {#if importError}
+      <div class="mt-4 text-red-400 text-sm">{importError}</div>
+    {/if}
   </section>
   
   <!-- Stats Cards -->
