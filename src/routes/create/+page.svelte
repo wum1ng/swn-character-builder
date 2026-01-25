@@ -27,15 +27,22 @@
     summary: 'Summary'
   };
 
+  let isEditing = $state(false);
+
   onMount(() => {
     const isRandom = $page.url.searchParams.get('random') === 'true';
-    if (isRandom) {
+    const isEdit = $page.url.searchParams.get('edit') === 'true';
+
+    if (isEdit && characterStore.editingCharacterId) {
+      // Keep the loaded character data, don't reset
+      isEditing = true;
+    } else if (isRandom) {
       characterStore.generateRandomCharacter();
     } else {
       characterStore.reset();
     }
   });
-  
+
   function getStepComponent(step: string) {
     switch (step) {
       case 'attributes': return AttributesStep;
@@ -58,7 +65,12 @@
         alert('Failed to save: ' + characterStore.error);
         return;
       }
-      goto(`${base}/`);
+      // If editing, go back to character view; otherwise go home
+      if (isEditing) {
+        goto(`${base}/character/${character.id}`);
+      } else {
+        goto(`${base}/`);
+      }
     } catch (e) {
       alert('Error saving character: ' + (e instanceof Error ? e.message : String(e)));
     }

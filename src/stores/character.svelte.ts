@@ -125,6 +125,7 @@ class CharacterStore {
   savedCharacters = $state<Character[]>([]);
   isLoading = $state(false);
   error = $state<string | null>(null);
+  editingCharacterId = $state<string | null>(null);
 
   // Step navigation
   readonly steps: CreationStep[] = [
@@ -345,47 +346,52 @@ class CharacterStore {
     const intMod = getAttributeModifier(this.draft.attributes.intelligence || 10);
     const wisMod = getAttributeModifier(this.draft.attributes.wisdom || 10);
     const chaMod = getAttributeModifier(this.draft.attributes.charisma || 10);
-    
+
+    // Get existing character data if editing
+    const existingChar = this.editingCharacterId
+      ? this.savedCharacters.find(c => c.id === this.editingCharacterId)
+      : null;
+
     return {
-      id: crypto.randomUUID(),
+      id: this.editingCharacterId || crypto.randomUUID(),
       name: this.draft.name,
       homeworld: this.draft.homeworld,
       species: this.draft.species,
       employer: this.draft.employer,
       goals: this.draft.goals,
       notes: this.draft.notes,
-      
-      level: 1,
-      experience: 0,
+
+      level: existingChar?.level || 1,
+      experience: existingChar?.experience || 0,
       attributes: this.draft.attributes as Attributes,
-      
+
       backgroundId: this.draft.backgroundId!,
       classId: this.draft.classId!,
       partialClasses: this.draft.partialClasses,
-      
+
       skills: this.draft.skills,
       foci: this.draft.selectedFoci,
-      
+
       psychicDisciplines: this.draft.psychicDisciplines,
       psychicTechniques: this.draft.psychicTechniques,
       effortMax: this.calculateMaxEffort(),
-      effortCurrent: this.calculateMaxEffort(),
-      
+      effortCurrent: existingChar?.effortCurrent ?? this.calculateMaxEffort(),
+
       hitPointsMax: this.draft.hitPoints || 1,
-      hitPointsCurrent: this.draft.hitPoints || 1,
+      hitPointsCurrent: existingChar?.hitPointsCurrent ?? (this.draft.hitPoints || 1),
       attackBonus: this.calculateAttackBonus(),
       armorClass: 10 + dexMod,
-      
+
       equipment: this.draft.equipment,
       credits: this.draft.credits,
-      
+
       savingThrows: {
         physical: 15 - 1 - Math.max(strMod, conMod),
         evasion: 15 - 1 - Math.max(intMod, dexMod),
         mental: 15 - 1 - Math.max(wisMod, chaMod)
       },
-      
-      createdAt: now,
+
+      createdAt: existingChar?.createdAt || now,
       updatedAt: now
     };
   }
@@ -470,6 +476,37 @@ class CharacterStore {
     }
   }
 
+  // Load character for editing
+  loadCharacterForEdit(character: Character) {
+    this.editingCharacterId = character.id;
+    this.draft = {
+      currentStep: 'summary',
+      attributes: { ...character.attributes },
+      attributeMethod: 'custom',
+      backgroundSkillMethod: 'pick',
+      growthRolls: [],
+      learningRolls: [],
+      pickedSkills: [],
+      selectedFoci: [...character.foci],
+      skills: [...character.skills],
+      psychicDisciplines: character.psychicDisciplines || [],
+      psychicTechniques: character.psychicTechniques || [],
+      equipment: [...character.equipment],
+      credits: character.credits,
+      name: character.name,
+      homeworld: character.homeworld,
+      species: character.species,
+      employer: character.employer,
+      goals: character.goals,
+      notes: character.notes,
+      backgroundId: character.backgroundId,
+      classId: character.classId,
+      partialClasses: character.partialClasses,
+      hitPoints: character.hitPointsMax,
+      hobbySkill: character.skills[0]?.skillId // Just pick first skill as placeholder
+    };
+  }
+
   // Random character generation
   generateRandomCharacter() {
     this.reset();
@@ -534,6 +571,7 @@ class CharacterStore {
   // Reset
   reset() {
     this.draft = createInitialDraft();
+    this.editingCharacterId = null;
   }
 }
 

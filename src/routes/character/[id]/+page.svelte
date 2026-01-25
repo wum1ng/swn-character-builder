@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { base } from '$app/paths';
   import { characterStore } from '$stores/character.svelte';
@@ -14,6 +15,7 @@
   let character = $state<Character | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let copySuccess = $state(false);
 
   const attributes: AttributeKey[] = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
 
@@ -33,6 +35,75 @@
     if (!character) return 0;
     const score = character.attributes[attr];
     return score ? getAttributeModifier(score) : 0;
+  }
+
+  function exportJSON() {
+    if (!character) return;
+    const dataStr = JSON.stringify(character, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${character.name.replace(/\s+/g, '_') || 'character'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function copyToClipboard() {
+    if (!character) return;
+    const text = formatCharacterText(character);
+    try {
+      await navigator.clipboard.writeText(text);
+      copySuccess = true;
+      setTimeout(() => copySuccess = false, 2000);
+    } catch {
+      alert('Failed to copy to clipboard');
+    }
+  }
+
+  function formatCharacterText(char: Character): string {
+    const bg = getBackgroundById(char.backgroundId);
+    const cls = getClassById(char.classId);
+    const lines = [
+      `${char.name}`,
+      `Level ${char.level} ${cls?.name || char.classId} | ${bg?.name || char.backgroundId} Background`,
+      ``,
+      `HP: ${char.hitPointsCurrent}/${char.hitPointsMax} | AC: ${char.armorClass} | AB: +${char.attackBonus}`,
+      ``,
+      `ATTRIBUTES`,
+      `STR: ${char.attributes.strength} (${formatModifier(getAttributeModifier(char.attributes.strength))})`,
+      `DEX: ${char.attributes.dexterity} (${formatModifier(getAttributeModifier(char.attributes.dexterity))})`,
+      `CON: ${char.attributes.constitution} (${formatModifier(getAttributeModifier(char.attributes.constitution))})`,
+      `INT: ${char.attributes.intelligence} (${formatModifier(getAttributeModifier(char.attributes.intelligence))})`,
+      `WIS: ${char.attributes.wisdom} (${formatModifier(getAttributeModifier(char.attributes.wisdom))})`,
+      `CHA: ${char.attributes.charisma} (${formatModifier(getAttributeModifier(char.attributes.charisma))})`,
+      ``,
+      `SAVING THROWS`,
+      `Physical: ${char.savingThrows.physical}+ | Evasion: ${char.savingThrows.evasion}+ | Mental: ${char.savingThrows.mental}+`,
+      ``,
+      `SKILLS`,
+      char.skills.map(s => `${getSkillById(s.skillId)?.name || s.skillId}-${s.rank}`).join(', '),
+      ``,
+      `FOCI`,
+      char.foci.map(f => `${getFocusById(f.focusId)?.name || f.focusId} (Lvl ${f.level})`).join(', '),
+      ``,
+      `EQUIPMENT`,
+      char.equipment.map(id => getEquipmentById(id)?.name || id).join(', '),
+      `Credits: ${char.credits}`,
+    ];
+    if (char.homeworld) lines.push(``, `Homeworld: ${char.homeworld}`);
+    if (char.goals) lines.push(`Goals: ${char.goals}`);
+    return lines.join('\n');
+  }
+
+  function editCharacter() {
+    if (!character) return;
+    characterStore.loadCharacterForEdit(character);
+    goto(`${base}/create?edit=true`);
+  }
+
+  function printCharacter() {
+    window.print();
   }
 </script>
 
@@ -230,13 +301,50 @@
       {/if}
 
       <!-- Actions -->
-      <div class="flex justify-center gap-4 pt-4">
-        <button
-          onclick={() => character && characterStore.deleteCharacter(character.id).then(() => window.location.href = `${base}/`)}
-          class="btn btn-ghost text-red-400"
-        >
-          Delete Character
-        </button>
+      <div class="card p-4 print:hidden">
+        <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Actions</h4>
+        <div class="flex flex-wrap justify-center gap-3">
+          <button onclick={editCharacter} class="btn btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit
+          </button>
+          <button onclick={exportJSON} class="btn btn-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export JSON
+          </button>
+          <button onclick={copyToClipboard} class="btn btn-secondary">
+            {#if copySuccess}
+              <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              Copied!
+            {:else}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              Copy Text
+            {/if}
+          </button>
+          <button onclick={printCharacter} class="btn btn-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print
+          </button>
+          <button
+            onclick={() => character && characterStore.deleteCharacter(character.id).then(() => window.location.href = `${base}/`)}
+            class="btn btn-ghost text-red-400"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   {/if}
