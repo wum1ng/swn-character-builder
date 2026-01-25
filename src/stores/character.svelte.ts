@@ -3,6 +3,73 @@ import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey,
 import { rollAllAttributes, createEmptyAttributes, getAttributeModifier } from '$data/attributes';
 import { getBackgroundById } from '$data/backgrounds';
 
+// Storage helpers with localStorage fallback for Safari Private Browsing
+const STORAGE_PREFIX = 'swn-character-';
+
+async function storageSet(key: string, value: Character): Promise<void> {
+  try {
+    await set(key, value);
+  } catch {
+    // Fallback to localStorage
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+    } else {
+      throw new Error('No storage available');
+    }
+  }
+}
+
+async function storageGet(key: string): Promise<Character | undefined> {
+  try {
+    const result = await get(key);
+    if (result) return result as Character;
+  } catch {
+    // Ignore IndexedDB errors
+  }
+  // Try localStorage fallback
+  if (typeof localStorage !== 'undefined') {
+    const item = localStorage.getItem(STORAGE_PREFIX + key);
+    if (item) return JSON.parse(item) as Character;
+  }
+  return undefined;
+}
+
+async function storageDel(key: string): Promise<void> {
+  try {
+    await del(key);
+  } catch {
+    // Ignore IndexedDB errors
+  }
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(STORAGE_PREFIX + key);
+  }
+}
+
+async function storageKeys(): Promise<string[]> {
+  const allKeys: string[] = [];
+
+  // Try IndexedDB
+  try {
+    const idbKeys = await keys();
+    allKeys.push(...idbKeys.map(k => String(k)));
+  } catch {
+    // Ignore IndexedDB errors
+  }
+
+  // Also check localStorage
+  if (typeof localStorage !== 'undefined') {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(STORAGE_PREFIX + 'character-')) {
+        allKeys.push(key.replace(STORAGE_PREFIX, ''));
+      }
+    }
+  }
+
+  // Deduplicate
+  return [...new Set(allKeys)];
+}
+
 // Initial draft state
 function createInitialDraft(): CharacterDraft {
   return {
@@ -336,11 +403,13 @@ class CharacterStore {
   async saveCharacter(character: Character) {
     try {
       this.isLoading = true;
-      await set(`character-${character.id}`, character);
+      this.error = null;
+      await storageSet(`character-${character.id}`, character);
       this.savedCharacters = [...this.savedCharacters.filter(c => c.id !== character.id), character];
     } catch (e) {
       this.error = 'Failed to save character';
       console.error(e);
+      throw e;
     } finally {
       this.isLoading = false;
     }
@@ -349,15 +418,15 @@ class CharacterStore {
   async loadCharacters() {
     try {
       this.isLoading = true;
-      const allKeys = await keys();
-      const characterKeys = allKeys.filter(k => String(k).startsWith('character-'));
+      const allKeys = await storageKeys();
+      const characterKeys = allKeys.filter(k => k.startsWith('character-'));
       const characters: Character[] = [];
-      
+
       for (const key of characterKeys) {
-        const char = await get(key);
-        if (char) characters.push(char as Character);
+        const char = await storageGet(key);
+        if (char) characters.push(char);
       }
-      
+
       this.savedCharacters = characters;
     } catch (e) {
       this.error = 'Failed to load characters';
@@ -369,7 +438,7 @@ class CharacterStore {
 
   async deleteCharacter(id: string) {
     try {
-      await del(`character-${id}`);
+      await storageDel(`character-${id}`);
       this.savedCharacters = this.savedCharacters.filter(c => c.id !== id);
     } catch (e) {
       this.error = 'Failed to delete character';
