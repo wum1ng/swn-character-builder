@@ -46,9 +46,17 @@
   }
   
   async function handleComplete() {
-    const character = characterStore.buildCharacter();
-    await characterStore.saveCharacter(character);
-    goto(`${base}/`);
+    try {
+      const character = characterStore.buildCharacter();
+      await characterStore.saveCharacter(character);
+      if (characterStore.error) {
+        alert('Failed to save: ' + characterStore.error);
+        return;
+      }
+      goto(`${base}/`);
+    } catch (e) {
+      alert('Error saving character: ' + (e instanceof Error ? e.message : String(e)));
+    }
   }
   
   $effect(() => {
