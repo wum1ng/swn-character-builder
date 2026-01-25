@@ -4,18 +4,22 @@
   import { page } from '$app/stores';
   import { base } from '$app/paths';
   import { characterStore } from '$stores/character.svelte';
-  import { getBackgroundById } from '$data/backgrounds';
-  import { getClassById, PARTIAL_CLASSES } from '$data/classes';
-  import { getFocusById } from '$data/foci';
-  import { getSkillById } from '$data/skills';
-  import { getEquipmentById } from '$data/equipment';
+  import { getBackgroundById, BACKGROUNDS } from '$data/backgrounds';
+  import { getClassById, PARTIAL_CLASSES, CLASSES } from '$data/classes';
+  import { getFocusById, FOCI } from '$data/foci';
+  import { getSkillById, SKILLS } from '$data/skills';
+  import { getEquipmentById, ALL_EQUIPMENT } from '$data/equipment';
   import { formatModifier, getAttributeModifier } from '$data/attributes';
-  import type { Character, AttributeKey } from '$types/character';
+  import type { Character, AttributeKey, ClassName, PartialClass } from '$types/character';
 
   let character = $state<Character | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let copySuccess = $state(false);
+  let showDeleteConfirm = $state(false);
+  let isEditing = $state(false);
+  let editedCharacter = $state<Character | null>(null);
+  let saveError = $state<string | null>(null);
 
   const attributes: AttributeKey[] = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
 
@@ -96,20 +100,126 @@
     return lines.join('\n');
   }
 
-  function editCharacter() {
+  function startEdit() {
     if (!character) return;
-    characterStore.loadCharacterForEdit(character);
-    goto(`${base}/create?edit=true`);
+    editedCharacter = JSON.parse(JSON.stringify(character));
+    isEditing = true;
+    saveError = null;
+  }
+
+  function cancelEdit() {
+    isEditing = false;
+    editedCharacter = null;
+    saveError = null;
+  }
+
+  async function saveEdit() {
+    if (!editedCharacter) return;
+    try {
+      editedCharacter.updatedAt = new Date().toISOString();
+      await characterStore.saveCharacter(editedCharacter);
+      character = editedCharacter;
+      isEditing = false;
+      editedCharacter = null;
+      saveError = null;
+    } catch (e) {
+      saveError = e instanceof Error ? e.message : 'Failed to save';
+    }
   }
 
   function printCharacter() {
     window.print();
+  }
+
+  async function confirmDelete() {
+    if (!character) return;
+    await characterStore.deleteCharacter(character.id);
+    goto(`${base}/`);
+  }
+
+  // Edit helpers
+  function updateAttribute(attr: AttributeKey, value: string) {
+    if (!editedCharacter) return;
+    const num = parseInt(value) || 3;
+    editedCharacter.attributes[attr] = Math.max(3, Math.min(18, num));
+  }
+
+  function updateSkillRank(skillId: string, rank: number) {
+    if (!editedCharacter) return;
+    const existing = editedCharacter.skills.find(s => s.skillId === skillId);
+    if (rank < 0) {
+      editedCharacter.skills = editedCharacter.skills.filter(s => s.skillId !== skillId);
+    } else if (existing) {
+      existing.rank = rank;
+    } else {
+      editedCharacter.skills = [...editedCharacter.skills, { skillId, rank }];
+    }
+  }
+
+  function getSkillRank(skillId: string): number {
+    if (!editedCharacter) return -1;
+    const skill = editedCharacter.skills.find(s => s.skillId === skillId);
+    return skill?.rank ?? -1;
+  }
+
+  function updateFocusLevel(focusId: string, level: 0 | 1 | 2) {
+    if (!editedCharacter) return;
+    if (level === 0) {
+      editedCharacter.foci = editedCharacter.foci.filter(f => f.focusId !== focusId);
+    } else {
+      const existing = editedCharacter.foci.find(f => f.focusId === focusId);
+      if (existing) {
+        existing.level = level;
+      } else {
+        editedCharacter.foci = [...editedCharacter.foci, { focusId, level }];
+      }
+    }
+  }
+
+  function getFocusLevel(focusId: string): 0 | 1 | 2 {
+    if (!editedCharacter) return 0;
+    const focus = editedCharacter.foci.find(f => f.focusId === focusId);
+    return focus?.level ?? 0;
+  }
+
+  function toggleEquipment(itemId: string) {
+    if (!editedCharacter) return;
+    if (editedCharacter.equipment.includes(itemId)) {
+      editedCharacter.equipment = editedCharacter.equipment.filter(id => id !== itemId);
+    } else {
+      editedCharacter.equipment = [...editedCharacter.equipment, itemId];
+    }
+  }
+
+  function hasEquipment(itemId: string): boolean {
+    return editedCharacter?.equipment.includes(itemId) ?? false;
   }
 </script>
 
 <svelte:head>
   <title>{character?.name || 'Character'} - SWN Character Builder</title>
 </svelte:head>
+
+<!-- Delete Confirmation Modal -->
+{#if showDeleteConfirm}
+  <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div class="card p-6 max-w-md w-full">
+      <h3 class="font-display text-xl tracking-wider text-red-400 mb-4">Delete Character?</h3>
+      <p class="text-slate-300 mb-6">
+        Are you sure you want to delete <strong class="text-white">{character?.name || 'this character'}</strong>?
+        This action cannot be undone.
+      </p>
+      <div class="flex gap-3 justify-end">
+        <button onclick={() => showDeleteConfirm = false} class="btn btn-ghost">
+          Cancel
+        </button>
+        <button onclick={confirmDelete} class="btn bg-red-600 hover:bg-red-500 text-white">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
   {#if loading}
@@ -121,7 +231,7 @@
       <div class="text-red-400 mb-4">{error}</div>
       <a href="{base}/" class="btn btn-primary">Back to Home</a>
     </div>
-  {:else if character}
+  {:else if character && !isEditing}
     {@const background = getBackgroundById(character.backgroundId)}
     {@const charClass = getClassById(character.classId)}
     {@const partialClassNames = character.partialClasses?.map(pc =>
@@ -271,7 +381,7 @@
       {/if}
 
       <!-- Character Info -->
-      {#if character.homeworld || character.species || character.employer}
+      {#if character.homeworld || character.species || character.employer || character.goals || character.notes}
         <div class="card p-4">
           <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Details</h4>
           <div class="grid gap-2 text-sm">
@@ -304,7 +414,7 @@
       <div class="card p-4 print:hidden">
         <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Actions</h4>
         <div class="flex flex-wrap justify-center gap-3">
-          <button onclick={editCharacter} class="btn btn-primary">
+          <button onclick={startEdit} class="btn btn-primary">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
@@ -336,7 +446,7 @@
             Print
           </button>
           <button
-            onclick={() => character && characterStore.deleteCharacter(character.id).then(() => window.location.href = `${base}/`)}
+            onclick={() => showDeleteConfirm = true}
             class="btn btn-ghost text-red-400"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,6 +455,265 @@
             Delete
           </button>
         </div>
+      </div>
+    </div>
+  {:else if editedCharacter && isEditing}
+    <!-- Edit Mode -->
+    <div class="mb-6 flex items-center justify-between">
+      <button onclick={cancelEdit} class="btn btn-ghost text-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Cancel Edit
+      </button>
+      <button onclick={saveEdit} class="btn btn-primary">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        Save Changes
+      </button>
+    </div>
+
+    {#if saveError}
+      <div class="card p-4 bg-red-500/20 border-red-500/50 mb-6">
+        <p class="text-red-400">{saveError}</p>
+      </div>
+    {/if}
+
+    <div class="space-y-6">
+      <!-- Basic Info -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Basic Information</h3>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Name</label>
+            <input type="text" bind:value={editedCharacter.name} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Level</label>
+            <input type="number" min="1" max="20" bind:value={editedCharacter.level} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Background</label>
+            <select bind:value={editedCharacter.backgroundId} class="input select">
+              {#each BACKGROUNDS as bg}
+                <option value={bg.id}>{bg.name}</option>
+              {/each}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Class</label>
+            <select bind:value={editedCharacter.classId} class="input select">
+              {#each CLASSES as cls}
+                <option value={cls.id}>{cls.name}</option>
+              {/each}
+            </select>
+          </div>
+          {#if editedCharacter.classId === 'adventurer'}
+            <div class="sm:col-span-2">
+              <label class="block text-sm text-slate-400 mb-1">Partial Classes</label>
+              <div class="flex flex-wrap gap-2">
+                {#each PARTIAL_CLASSES as pc}
+                  <label class="flex items-center gap-2 px-3 py-2 rounded bg-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editedCharacter.partialClasses?.includes(pc.id as PartialClass)}
+                      onchange={(e) => {
+                        const checked = (e.target as HTMLInputElement).checked;
+                        const current = editedCharacter!.partialClasses || [];
+                        if (checked && current.length < 2) {
+                          editedCharacter!.partialClasses = [...current, pc.id as PartialClass] as [PartialClass, PartialClass];
+                        } else if (!checked) {
+                          editedCharacter!.partialClasses = current.filter(p => p !== pc.id) as [PartialClass, PartialClass];
+                        }
+                      }}
+                      class="rounded"
+                    />
+                    <span class="text-sm">{pc.name}</span>
+                  </label>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Combat Stats -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Combat Stats</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">HP Max</label>
+            <input type="number" min="1" bind:value={editedCharacter.hitPointsMax} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">HP Current</label>
+            <input type="number" min="0" bind:value={editedCharacter.hitPointsCurrent} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Attack Bonus</label>
+            <input type="number" min="0" bind:value={editedCharacter.attackBonus} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Armor Class</label>
+            <input type="number" min="0" bind:value={editedCharacter.armorClass} class="input" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Attributes -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Attributes</h3>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-4">
+          {#each attributes as attr}
+            <div>
+              <label class="block text-xs text-slate-400 mb-1 uppercase">{attr.slice(0, 3)}</label>
+              <input
+                type="number"
+                min="3"
+                max="18"
+                value={editedCharacter.attributes[attr]}
+                oninput={(e) => updateAttribute(attr, (e.target as HTMLInputElement).value)}
+                class="input text-center"
+              />
+              <div class="text-xs text-center mt-1 {getAttributeModifier(editedCharacter.attributes[attr]) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                {formatModifier(getAttributeModifier(editedCharacter.attributes[attr]))}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Saving Throws -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Saving Throws</h3>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Physical</label>
+            <input type="number" min="1" max="20" bind:value={editedCharacter.savingThrows.physical} class="input text-center" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Evasion</label>
+            <input type="number" min="1" max="20" bind:value={editedCharacter.savingThrows.evasion} class="input text-center" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Mental</label>
+            <input type="number" min="1" max="20" bind:value={editedCharacter.savingThrows.mental} class="input text-center" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Skills -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Skills</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {#each SKILLS as skill}
+            <div class="flex items-center justify-between p-2 rounded bg-slate-800/50">
+              <span class="text-sm {skill.isPsychic ? 'text-purple-400' : 'text-slate-300'}">{skill.name}</span>
+              <select
+                value={getSkillRank(skill.id)}
+                onchange={(e) => updateSkillRank(skill.id, parseInt((e.target as HTMLSelectElement).value))}
+                class="w-16 px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
+              >
+                <option value="-1">-</option>
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </div>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Foci -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Foci</h3>
+        <div class="grid gap-3 sm:grid-cols-2">
+          {#each FOCI as focus}
+            <div class="flex items-center justify-between p-3 rounded bg-slate-800/50">
+              <div>
+                <span class="text-sm text-white">{focus.name}</span>
+                <span class="text-xs text-slate-500 ml-2">({focus.type})</span>
+              </div>
+              <select
+                value={getFocusLevel(focus.id)}
+                onchange={(e) => updateFocusLevel(focus.id, parseInt((e.target as HTMLSelectElement).value) as 0 | 1 | 2)}
+                class="w-20 px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
+              >
+                <option value="0">None</option>
+                <option value="1">Lvl 1</option>
+                <option value="2">Lvl 2</option>
+              </select>
+            </div>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Equipment -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Equipment</h3>
+        <div class="mb-4">
+          <label class="block text-sm text-slate-400 mb-1">Credits</label>
+          <input type="number" min="0" bind:value={editedCharacter.credits} class="input w-32" />
+        </div>
+        <div class="max-h-64 overflow-y-auto">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {#each ALL_EQUIPMENT as item}
+              <label class="flex items-center gap-2 p-2 rounded bg-slate-800/50 cursor-pointer hover:bg-slate-700/50 text-sm">
+                <input
+                  type="checkbox"
+                  checked={hasEquipment(item.id)}
+                  onchange={() => toggleEquipment(item.id)}
+                  class="rounded"
+                />
+                <span class="text-slate-300 truncate">{item.name}</span>
+              </label>
+            {/each}
+          </div>
+        </div>
+      </div>
+
+      <!-- Details -->
+      <div class="card p-6">
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Character Details</h3>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Homeworld</label>
+            <input type="text" bind:value={editedCharacter.homeworld} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Species</label>
+            <input type="text" bind:value={editedCharacter.species} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Employer</label>
+            <input type="text" bind:value={editedCharacter.employer} class="input" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-400 mb-1">Experience</label>
+            <input type="number" min="0" bind:value={editedCharacter.experience} class="input" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-sm text-slate-400 mb-1">Goals</label>
+            <textarea bind:value={editedCharacter.goals} rows="2" class="input"></textarea>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-sm text-slate-400 mb-1">Notes</label>
+            <textarea bind:value={editedCharacter.notes} rows="3" class="input"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save/Cancel Buttons (bottom) -->
+      <div class="flex gap-3 justify-end">
+        <button onclick={cancelEdit} class="btn btn-ghost">
+          Cancel
+        </button>
+        <button onclick={saveEdit} class="btn btn-primary">
+          Save Changes
+        </button>
       </div>
     </div>
   {/if}
