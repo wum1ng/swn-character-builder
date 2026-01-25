@@ -1,7 +1,31 @@
 import { get, set, del, keys } from 'idb-keyval';
-import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank } from '$types/character';
+import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName } from '$types/character';
 import { rollAllAttributes, createEmptyAttributes, getAttributeModifier } from '$data/attributes';
-import { getBackgroundById } from '$data/backgrounds';
+import { BACKGROUNDS, getBackgroundById } from '$data/backgrounds';
+import { CLASSES } from '$data/classes';
+import { COMBAT_FOCI, NON_COMBAT_FOCI } from '$data/foci';
+import { SKILLS, NON_COMBAT_SKILLS, COMBAT_SKILLS } from '$data/skills';
+import { EQUIPMENT_PACKAGES } from '$data/equipment';
+
+// Random name generator
+const FIRST_NAMES = [
+  'Zara', 'Kira', 'Jax', 'Nova', 'Orion', 'Vex', 'Luna', 'Cade', 'Ryn', 'Thane',
+  'Mira', 'Dex', 'Aria', 'Cole', 'Lyra', 'Zeke', 'Nyx', 'Finn', 'Sera', 'Blake',
+  'Echo', 'Kai', 'Wren', 'Ash', 'Quinn', 'Rey', 'Zion', 'Jade', 'Cruz', 'Storm'
+];
+const LAST_NAMES = [
+  'Vance', 'Cross', 'Sterling', 'Blackwood', 'Reyes', 'Tanaka', 'Chen', 'Okonkwo',
+  'Volkov', 'Santos', 'Kim', 'Nakamura', 'Singh', 'Oduya', 'Larsen', 'Petrova',
+  'Moreau', 'Hassan', 'Yamamoto', 'Kowalski', 'Rivera', 'Zhang', 'Ito', 'Novak'
+];
+
+function randomFrom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function generateRandomName(): string {
+  return `${randomFrom(FIRST_NAMES)} ${randomFrom(LAST_NAMES)}`;
+}
 
 // Storage helpers with localStorage fallback for Safari Private Browsing
 const STORAGE_PREFIX = 'swn-character-';
@@ -444,6 +468,67 @@ class CharacterStore {
       this.error = 'Failed to delete character';
       console.error(e);
     }
+  }
+
+  // Random character generation
+  generateRandomCharacter() {
+    this.reset();
+
+    // 1. Roll attributes
+    this.draft.attributes = rollAllAttributes();
+    this.draft.attributeMethod = 'random';
+
+    // 2. Pick random background
+    const background = randomFrom(BACKGROUNDS);
+    this.draft.backgroundId = background.id;
+    this.addSkill(background.freeSkill, 0);
+
+    // Add quick skills from background
+    for (const skillId of background.quickSkills) {
+      if (skillId === 'any-combat') {
+        this.addSkill(randomFrom(COMBAT_SKILLS), 0);
+      } else {
+        this.addSkill(skillId, 0);
+      }
+    }
+
+    // 3. Pick random class (warrior or expert for simplicity)
+    const classId = randomFrom(['warrior', 'expert'] as const);
+    this.draft.classId = classId;
+
+    // 4. Pick appropriate focus based on class
+    if (classId === 'warrior') {
+      const focus = randomFrom(COMBAT_FOCI);
+      this.draft.selectedFoci.push({ focusId: focus.id, level: 1 });
+    } else {
+      const focus = randomFrom(NON_COMBAT_FOCI);
+      this.draft.selectedFoci.push({ focusId: focus.id, level: 1 });
+    }
+
+    // 5. Add a hobby skill
+    const availableHobbySkills = SKILLS.filter(s => !s.isPsychic).map(s => s.id);
+    this.draft.hobbySkill = randomFrom(availableHobbySkills);
+    this.addSkill(this.draft.hobbySkill, 0);
+
+    // 6. Roll hit points
+    this.rollHitPoints();
+
+    // 7. Pick random equipment package
+    const pkg = randomFrom(EQUIPMENT_PACKAGES);
+    this.draft.equipmentPackageId = pkg.id;
+    this.draft.equipment = [...pkg.items];
+    this.draft.credits = pkg.credits;
+
+    // 8. Generate random name and details
+    this.draft.name = generateRandomName();
+    this.draft.species = 'Human';
+    this.draft.homeworld = randomFrom([
+      'Terra Nova', 'Kepler Prime', 'Axiom Station', 'New Shanghai',
+      'Frontier 7', 'Olympus Mons', 'Cygnus IV', 'The Drift'
+    ]);
+
+    // Go to summary step
+    this.draft.currentStep = 'summary';
   }
 
   // Reset

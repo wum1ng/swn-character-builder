@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { base } from '$app/paths';
   import { characterStore } from '$stores/character.svelte';
   import AttributesStep from '$lib/components/steps/AttributesStep.svelte';
@@ -12,7 +13,7 @@
   import EquipmentStep from '$lib/components/steps/EquipmentStep.svelte';
   import DetailsStep from '$lib/components/steps/DetailsStep.svelte';
   import SummaryStep from '$lib/components/steps/SummaryStep.svelte';
-  
+
   const stepLabels: Record<string, string> = {
     attributes: 'Attributes',
     background: 'Background',
@@ -25,10 +26,14 @@
     details: 'Details',
     summary: 'Summary'
   };
-  
+
   onMount(() => {
-    // Reset on mount for fresh character
-    characterStore.reset();
+    const isRandom = $page.url.searchParams.get('random') === 'true';
+    if (isRandom) {
+      characterStore.generateRandomCharacter();
+    } else {
+      characterStore.reset();
+    }
   });
   
   function getStepComponent(step: string) {
