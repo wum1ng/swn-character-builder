@@ -1,6 +1,6 @@
 import { get, set, del, keys } from 'idb-keyval';
 import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName } from '$types/character';
-import { rollAllAttributes, createEmptyAttributes, getAttributeModifier } from '$data/attributes';
+import { rollAllAttributes, createEmptyAttributes, getAttributeModifier, STANDARD_ARRAY } from '$data/attributes';
 import { BACKGROUNDS, getBackgroundById } from '$data/backgrounds';
 import { CLASSES } from '$data/classes';
 import { COMBAT_FOCI, NON_COMBAT_FOCI } from '$data/foci';
@@ -516,9 +516,23 @@ class CharacterStore {
   generateRandomCharacter() {
     this.reset();
 
-    // 1. Roll attributes
-    this.draft.attributes = rollAllAttributes();
-    this.draft.attributeMethod = 'random';
+    // 1. Use standard array with random assignment
+    const array = [...STANDARD_ARRAY];
+    // Shuffle the array
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    const attrs: AttributeKey[] = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+    this.draft.attributes = {
+      strength: array[0],
+      dexterity: array[1],
+      constitution: array[2],
+      intelligence: array[3],
+      wisdom: array[4],
+      charisma: array[5]
+    };
+    this.draft.attributeMethod = 'array';
 
     // 2. Pick random background
     const background = randomFrom(BACKGROUNDS);
