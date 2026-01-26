@@ -88,6 +88,16 @@
 
   // Show summary toggle only after attributes step
   const showSummaryToggle = $derived(characterStore.currentStepIndex > 0);
+
+  function handleNextStep() {
+    characterStore.nextStep();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handlePrevStep() {
+    characterStore.prevStep();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 </script>
 
 <svelte:head>
@@ -195,7 +205,7 @@
       <!-- Navigation Buttons -->
       <div class="flex items-center justify-between gap-4">
         <button
-          onclick={() => characterStore.prevStep()}
+          onclick={handlePrevStep}
           disabled={!characterStore.canGoBack}
           class="btn btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -212,7 +222,7 @@
 
           {#if characterStore.draft.currentStep !== 'summary'}
             <button
-              onclick={() => characterStore.nextStep()}
+              onclick={handleNextStep}
               disabled={!characterStore.canGoForward}
               class="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >

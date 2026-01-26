@@ -17,9 +17,15 @@
     splitBonus?: { attr1: AttributeKey; attr2: AttributeKey };
   }
 
+  interface QuickSkillChoice {
+    type: 'any-combat' | 'any-skill';
+    selected: string | null;
+  }
+
   let selectedMethod = $state<SkillMethod>(null);
   let rolls = $state<RollResult[]>([]);
   let rollsRemaining = $state(3);
+  let quickSkillChoices = $state<QuickSkillChoice[]>([]);
 
   const background = $derived(
     characterStore.draft.backgroundId
@@ -33,18 +39,35 @@
     if (!background) return;
     selectedMethod = 'quick';
 
-    // Add quick skills
+    // Track which skills need selection
+    quickSkillChoices = [];
+
+    // Add quick skills or mark for selection
     for (const skillId of background.quickSkills) {
       if (skillId === 'any-combat') {
-        // Will need to pick later
+        quickSkillChoices.push({ type: 'any-combat', selected: null });
       } else if (skillId === 'any-skill') {
-        // Will need to pick later
+        quickSkillChoices.push({ type: 'any-skill', selected: null });
       } else {
         characterStore.addFreeSkill(skillId);
       }
     }
+
     characterStore.draft.backgroundSkillMethod = 'pick';
-    characterStore.draft.pickedSkills = ['done'];
+    // Only mark as done if no choices needed
+    if (quickSkillChoices.length === 0) {
+      characterStore.draft.pickedSkills = ['done'];
+    }
+  }
+
+  function selectQuickSkillChoice(index: number, skillId: string) {
+    quickSkillChoices[index].selected = skillId;
+    characterStore.addFreeSkill(skillId);
+
+    // Check if all choices made
+    if (quickSkillChoices.every(c => c.selected !== null)) {
+      characterStore.draft.pickedSkills = ['done'];
+    }
   }
 
   function startRolling() {
@@ -154,8 +177,9 @@
   }
 
   const allRollsApplied = $derived(rolls.length === 3 && rolls.every(r => r.applied));
+  const allQuickChoicesMade = $derived(quickSkillChoices.every(c => c.selected !== null));
   const isComplete = $derived(
-    selectedMethod === 'quick' ||
+    (selectedMethod === 'quick' && allQuickChoicesMade) ||
     (selectedMethod === 'roll' && allRollsApplied)
   );
 
@@ -163,7 +187,7 @@
   $effect(() => {
     if (isComplete) {
       characterStore.draft.pickedSkills = ['done'];
-    } else {
+    } else if (selectedMethod !== null) {
       characterStore.draft.pickedSkills = [];
     }
   });
@@ -197,7 +221,7 @@
           <div class="flex flex-wrap gap-2">
             {#each background.quickSkills as skill}
               <span class="px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-300">
-                {skill}
+                {skill === 'any-combat' ? 'Any Combat' : skill === 'any-skill' ? 'Any Skill' : skill}
               </span>
             {/each}
           </div>
@@ -219,18 +243,79 @@
       </div>
 
     {:else if selectedMethod === 'quick'}
-      <!-- Quick Skills Confirmed -->
+      <!-- Quick Skills with Choices -->
       <div class="card p-6 border-green-500/30">
-        <h4 class="font-display text-green-400 mb-3">Quick Skills Selected!</h4>
-        <div class="flex flex-wrap gap-2">
+        <h4 class="font-display text-green-400 mb-3">Quick Skills</h4>
+
+        <!-- Show fixed skills -->
+        <div class="flex flex-wrap gap-2 mb-4">
           {#each background.quickSkills as skill}
-            <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-300">
-              {skill === 'any-combat' ? 'Any Combat Skill' : skill === 'any-skill' ? 'Any Skill' : skill}
-            </span>
+            {#if skill !== 'any-combat' && skill !== 'any-skill'}
+              <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-300">
+                {skill}
+              </span>
+            {/if}
           {/each}
         </div>
+
+        <!-- Show choices that need to be made -->
+        {#if quickSkillChoices.length > 0}
+          <div class="space-y-4">
+            {#each quickSkillChoices as choice, i}
+              <div class="p-4 rounded bg-slate-800/50">
+                <p class="text-sm text-slate-300 mb-3">
+                  {#if choice.type === 'any-combat'}
+                    Choose a combat skill:
+                  {:else}
+                    Choose any skill:
+                  {/if}
+                </p>
+
+                {#if choice.selected}
+                  <div class="flex items-center gap-2">
+                    <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-300">
+                      {choice.selected}
+                    </span>
+                    <span class="text-green-400 text-sm">✓ Selected</span>
+                  </div>
+                {:else}
+                  <div class="flex flex-wrap gap-2">
+                    {#if choice.type === 'any-combat'}
+                      {#each COMBAT_SKILLS as skillId}
+                        <button
+                          onclick={() => selectQuickSkillChoice(i, skillId)}
+                          class="btn btn-ghost text-xs py-1 px-3"
+                        >
+                          {skillId}
+                        </button>
+                      {/each}
+                    {:else}
+                      {#each nonPsychicSkills as skill}
+                        <button
+                          onclick={() => selectQuickSkillChoice(i, skill.id)}
+                          class="btn btn-ghost text-xs py-1 px-2"
+                        >
+                          {skill.name}
+                        </button>
+                      {/each}
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+
         <button
-          onclick={() => { selectedMethod = null; characterStore.draft.pickedSkills = []; }}
+          onclick={() => {
+            selectedMethod = null;
+            quickSkillChoices = [];
+            characterStore.draft.pickedSkills = [];
+            // Reset skills added from quick selection
+            characterStore.draft.skills = characterStore.draft.skills.filter(
+              s => s.skillId === background?.freeSkill
+            );
+          }}
           class="mt-4 text-sm text-slate-400 hover:text-white"
         >
           ← Choose different method
@@ -450,6 +535,10 @@
             rollsRemaining = 3;
             splitSelections = {};
             characterStore.draft.pickedSkills = [];
+            // Reset skills added from rolling (keep only background free skill)
+            characterStore.draft.skills = characterStore.draft.skills.filter(
+              s => s.skillId === background?.freeSkill
+            );
           }}
           class="text-sm text-slate-400 hover:text-white"
         >
