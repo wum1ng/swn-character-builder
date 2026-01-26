@@ -95,6 +95,26 @@
 </svelte:head>
 
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+  <!-- Mobile Summary Toggle (at top) -->
+  {#if showSummaryToggle && characterStore.draft.currentStep !== 'summary'}
+    <div class="xl:hidden mb-6">
+      <button
+        onclick={() => showSummary = !showSummary}
+        class="btn btn-ghost w-full justify-between"
+      >
+        <span>Character Summary</span>
+        <svg class="w-5 h-5 transition-transform {showSummary ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {#if showSummary}
+        <div class="mt-4">
+          <CharacterSummary />
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   <!-- Progress Header -->
   <div class="mb-8">
     <div class="flex items-center justify-between mb-4">
@@ -216,23 +236,4 @@
     {/if}
   </div>
 
-  <!-- Mobile Summary Toggle -->
-  {#if showSummaryToggle && characterStore.draft.currentStep !== 'summary'}
-    <div class="xl:hidden mt-6">
-      <button
-        onclick={() => showSummary = !showSummary}
-        class="btn btn-ghost w-full justify-between"
-      >
-        <span>Character Summary</span>
-        <svg class="w-5 h-5 transition-transform {showSummary ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {#if showSummary}
-        <div class="mt-4">
-          <CharacterSummary />
-        </div>
-      {/if}
-    </div>
-  {/if}
 </div>
