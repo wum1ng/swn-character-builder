@@ -9,6 +9,26 @@
 
   let fileInput: HTMLInputElement;
   let importError = $state<string | null>(null);
+  let showDeleteConfirm = $state(false);
+  let characterToDelete = $state<Character | null>(null);
+
+  function confirmDelete(character: Character) {
+    characterToDelete = character;
+    showDeleteConfirm = true;
+  }
+
+  async function executeDelete() {
+    if (characterToDelete) {
+      await characterStore.deleteCharacter(characterToDelete.id);
+      showDeleteConfirm = false;
+      characterToDelete = null;
+    }
+  }
+
+  function cancelDelete() {
+    showDeleteConfirm = false;
+    characterToDelete = null;
+  }
 
   onMount(() => {
     characterStore.loadCharacters();
@@ -64,6 +84,27 @@
 <svelte:head>
   <title>SWN Character Builder - Stars Without Number</title>
 </svelte:head>
+
+<!-- Delete Confirmation Modal -->
+{#if showDeleteConfirm && characterToDelete}
+  <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div class="card p-6 max-w-md w-full">
+      <h3 class="font-display text-xl tracking-wider text-red-400 mb-4">Delete Character?</h3>
+      <p class="text-slate-300 mb-6">
+        Are you sure you want to delete <strong class="text-white">{characterToDelete.name || 'this character'}</strong>?
+        This action cannot be undone.
+      </p>
+      <div class="flex gap-3 justify-end">
+        <button onclick={cancelDelete} class="btn btn-ghost">
+          Cancel
+        </button>
+        <button onclick={executeDelete} class="btn bg-red-600 hover:bg-red-500 text-white">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
   <!-- Hero Section -->
@@ -176,8 +217,8 @@
               <span>Created {formatDate(character.createdAt)}</span>
               <div class="flex items-center gap-2">
                 <a href="{base}/character/{character.id}" class="text-cyan-400 hover:underline">View</a>
-                <button 
-                  onclick={() => characterStore.deleteCharacter(character.id)}
+                <button
+                  onclick={() => confirmDelete(character)}
                   class="text-red-400 hover:underline"
                 >
                   Delete
