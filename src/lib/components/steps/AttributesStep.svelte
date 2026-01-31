@@ -236,10 +236,10 @@
       {@const isReplaced = characterStore.draft.replacedAttribute === attr}
       {@const isSwapSelected = rearrangeMode && swapSource === attr}
 
-      <button
-        type="button"
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
         onclick={() => handleAttrClick(attr)}
-        disabled={!rearrangeMode}
         class="card p-4 text-left transition-all {
           isSwapSelected ? 'border-purple-500 ring-1 ring-purple-500/50' :
           isReplaced ? 'border-cyan-500' :
@@ -315,7 +315,7 @@
             {/if}
           {/if}
         </div>
-      </button>
+      </div>
     {/each}
   </div>
 
