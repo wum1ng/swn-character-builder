@@ -117,6 +117,14 @@ export interface EquipmentPackage {
   credits: number;
 }
 
+export type ItemLocation = 'readied' | 'stowed' | 'stored';
+
+export interface InventoryItem {
+  itemId: string;
+  location: ItemLocation;
+  quantity: number;
+}
+
 export interface SavingThrows {
   physical: number;
   evasion: number;
@@ -161,6 +169,7 @@ export interface Character {
   
   // Equipment
   equipment: string[];
+  inventory: InventoryItem[];
   credits: number;
   
   // Derived

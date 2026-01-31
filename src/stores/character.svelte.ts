@@ -1,11 +1,11 @@
 import { get, set, del, keys } from 'idb-keyval';
-import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName } from '$types/character';
+import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName, InventoryItem } from '$types/character';
 import { rollAllAttributes, createEmptyAttributes, getAttributeModifier, STANDARD_ARRAY } from '$data/attributes';
 import { BACKGROUNDS, getBackgroundById } from '$data/backgrounds';
 import { CLASSES } from '$data/classes';
 import { COMBAT_FOCI, NON_COMBAT_FOCI, getFocusById } from '$data/foci';
 import { SKILLS, NON_COMBAT_SKILLS, COMBAT_SKILLS } from '$data/skills';
-import { EQUIPMENT_PACKAGES } from '$data/equipment';
+import { EQUIPMENT_PACKAGES, getEquipmentById } from '$data/equipment';
 
 // Random name generator
 const FIRST_NAMES = [
@@ -92,6 +92,48 @@ async function storageKeys(): Promise<string[]> {
 
   // Deduplicate
   return [...new Set(allKeys)];
+}
+
+// Build inventory from a flat equipment ID array with sensible defaults
+function buildInventoryFromEquipment(equipmentIds: string[]): InventoryItem[] {
+  const grouped = new Map<string, { readied: number; stowed: number }>();
+
+  for (const id of equipmentIds) {
+    const item = getEquipmentById(id);
+    // Weapons and armor default to readied; gear defaults to stowed
+    const defaultLocation = (item?.category === 'weapon' || item?.category === 'armor') ? 'readied' : 'stowed';
+
+    const key = `${id}:${defaultLocation}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, { readied: 0, stowed: 0 });
+    }
+    const entry = grouped.get(key)!;
+    entry[defaultLocation]++;
+  }
+
+  const inventory: InventoryItem[] = [];
+  for (const [key, counts] of grouped) {
+    const itemId = key.split(':')[0];
+    const location = key.split(':')[1] as 'readied' | 'stowed';
+    const qty = location === 'readied' ? counts.readied : counts.stowed;
+    if (qty > 0) {
+      inventory.push({ itemId, location, quantity: qty });
+    }
+  }
+
+  return inventory;
+}
+
+// Migrate old character data that lacks inventory field
+function migrateCharacter(char: Character): Character {
+  if (!char.inventory || char.inventory.length === 0) {
+    if (char.equipment && char.equipment.length > 0) {
+      char.inventory = buildInventoryFromEquipment(char.equipment);
+    } else {
+      char.inventory = [];
+    }
+  }
+  return char;
 }
 
 // Initial draft state
@@ -406,6 +448,7 @@ class CharacterStore {
       armorClass: 10 + dexMod,
 
       equipment: this.draft.equipment,
+      inventory: existingChar?.inventory || buildInventoryFromEquipment(this.draft.equipment),
       credits: this.draft.credits,
 
       savingThrows: {
@@ -477,7 +520,7 @@ class CharacterStore {
 
       for (const key of characterKeys) {
         const char = await storageGet(key);
-        if (char) characters.push(char);
+        if (char) characters.push(migrateCharacter(char));
       }
 
       this.savedCharacters = characters;

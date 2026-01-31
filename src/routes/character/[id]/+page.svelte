@@ -10,7 +10,8 @@
   import { getSkillById, SKILLS } from '$data/skills';
   import { getEquipmentById, ALL_EQUIPMENT } from '$data/equipment';
   import { formatModifier, getAttributeModifier } from '$data/attributes';
-  import type { Character, AttributeKey, ClassName, PartialClass } from '$types/character';
+  import InventoryManager from '$lib/components/InventoryManager.svelte';
+  import type { Character, AttributeKey, ClassName, PartialClass, InventoryItem } from '$types/character';
 
   let character = $state<Character | null>(null);
   let loading = $state(true);
@@ -92,7 +93,13 @@
       char.foci.map(f => `${getFocusById(f.focusId)?.name || f.focusId} (Lvl ${f.level})`).join(', '),
       ``,
       `EQUIPMENT`,
-      char.equipment.map(id => getEquipmentById(id)?.name || id).join(', '),
+      ...(char.inventory && char.inventory.length > 0
+        ? [
+            `Readied: ${char.inventory.filter(i => i.location === 'readied').map(i => { const e = getEquipmentById(i.itemId); return e ? (i.quantity > 1 ? `${i.quantity}x ${e.name}` : e.name) : i.itemId; }).join(', ') || 'None'}`,
+            `Stowed: ${char.inventory.filter(i => i.location === 'stowed').map(i => { const e = getEquipmentById(i.itemId); return e ? (i.quantity > 1 ? `${i.quantity}x ${e.name}` : e.name) : i.itemId; }).join(', ') || 'None'}`,
+            `Stored: ${char.inventory.filter(i => i.location === 'stored').map(i => { const e = getEquipmentById(i.itemId); return e ? (i.quantity > 1 ? `${i.quantity}x ${e.name}` : e.name) : i.itemId; }).join(', ') || 'None'}`,
+          ]
+        : [char.equipment.map(id => getEquipmentById(id)?.name || id).join(', ')]),
       `Credits: ${char.credits}`,
     ];
     if (char.homeworld) lines.push(``, `Homeworld: ${char.homeworld}`);
@@ -129,6 +136,14 @@
 
   function printCharacter() {
     window.print();
+  }
+
+  async function handleInventoryUpdate(newInventory: InventoryItem[], newCredits: number) {
+    if (!character) return;
+    character.inventory = newInventory;
+    character.credits = newCredits;
+    character.updatedAt = new Date().toISOString();
+    await characterStore.saveCharacter(character);
   }
 
   async function confirmDelete() {
@@ -359,26 +374,8 @@
         </div>
       {/if}
 
-      <!-- Equipment -->
-      {#if character.equipment.length > 0 || character.credits > 0}
-        <div class="card p-4">
-          <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Equipment</h4>
-          <div class="flex flex-wrap gap-2 mb-4">
-            {#each character.equipment as itemId}
-              {@const item = getEquipmentById(itemId)}
-              {#if item}
-                <span class="px-2 py-1 rounded text-xs bg-slate-700 text-slate-200">
-                  {item.name}
-                </span>
-              {/if}
-            {/each}
-          </div>
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-500">Credits:</span>
-            <span class="text-yellow-400 font-display">{character.credits.toLocaleString()}</span>
-          </div>
-        </div>
-      {/if}
+      <!-- Inventory -->
+      <InventoryManager {character} onUpdate={handleInventoryUpdate} />
 
       <!-- Character Info -->
       {#if character.homeworld || character.species || character.employer || character.goals || character.notes}
@@ -651,28 +648,18 @@
         </div>
       </div>
 
-      <!-- Equipment -->
+      <!-- Inventory (Edit Mode) -->
       <div class="card p-6">
-        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Equipment</h3>
-        <div class="mb-4">
-          <label class="block text-sm text-slate-400 mb-1">Credits</label>
-          <input type="number" min="0" bind:value={editedCharacter.credits} class="input w-32" />
-        </div>
-        <div class="max-h-64 overflow-y-auto">
-          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {#each ALL_EQUIPMENT as item}
-              <label class="flex items-center gap-2 p-2 rounded bg-slate-800/50 cursor-pointer hover:bg-slate-700/50 text-sm">
-                <input
-                  type="checkbox"
-                  checked={hasEquipment(item.id)}
-                  onchange={() => toggleEquipment(item.id)}
-                  class="rounded"
-                />
-                <span class="text-slate-300 truncate">{item.name}</span>
-              </label>
-            {/each}
-          </div>
-        </div>
+        <h3 class="font-display text-lg tracking-wider text-cyan-400 mb-4">Inventory</h3>
+        <InventoryManager
+          character={editedCharacter}
+          onUpdate={(inv, cr) => {
+            if (editedCharacter) {
+              editedCharacter.inventory = inv;
+              editedCharacter.credits = cr;
+            }
+          }}
+        />
       </div>
 
       <!-- Details -->
