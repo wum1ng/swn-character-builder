@@ -169,6 +169,13 @@ class CharacterStore {
   error = $state<string | null>(null);
   editingCharacterId = $state<string | null>(null);
 
+  // Snapshot of draft when entering a step, for reset
+  private _stepSnapshot: string = JSON.stringify(createInitialDraft());
+
+  private _snapshotDraft() {
+    this._stepSnapshot = JSON.stringify(this.draft);
+  }
+
   // Step navigation
   readonly steps: CreationStep[] = [
     'attributes',
@@ -247,14 +254,16 @@ class CharacterStore {
 
   // Navigation actions
   goToStep(step: CreationStep) {
+    this._snapshotDraft();
     this.draft.currentStep = step;
   }
 
   nextStep() {
     if (this.canGoForward && this.currentStepIndex < this.steps.length - 1) {
+      this._snapshotDraft();
       // Skip psychic step if not a psychic class
       let nextIndex = this.currentStepIndex + 1;
-      if (this.steps[nextIndex] === 'psychic' && 
+      if (this.steps[nextIndex] === 'psychic' &&
           this.draft.classId !== 'psychic' &&
           !this.draft.partialClasses?.includes('partial-psychic')) {
         nextIndex++;
@@ -265,9 +274,10 @@ class CharacterStore {
 
   prevStep() {
     if (this.canGoBack) {
+      this._snapshotDraft();
       let prevIndex = this.currentStepIndex - 1;
       // Skip psychic step if not a psychic class
-      if (this.steps[prevIndex] === 'psychic' && 
+      if (this.steps[prevIndex] === 'psychic' &&
           this.draft.classId !== 'psychic' &&
           !this.draft.partialClasses?.includes('partial-psychic')) {
         prevIndex--;
@@ -651,62 +661,13 @@ class CharacterStore {
     this.draft.currentStep = 'summary';
   }
 
-  // Reset only the current step's data, keeping everything else
+  // Restore draft to the snapshot taken when the current step was entered
   resetCurrentStep() {
-    const step = this.draft.currentStep;
-    switch (step) {
-      case 'attributes':
-        this.draft.attributes = {};
-        this.draft.attributeMethod = 'random';
-        this.draft.replacedAttribute = undefined;
-        break;
-      case 'background':
-        this.draft.backgroundId = undefined;
-        // Also clear background skills since they depend on background
-        this.draft.growthRolls = [];
-        this.draft.learningRolls = [];
-        this.draft.pickedSkills = [];
-        this.draft.backgroundSkillMethod = 'roll';
-        break;
-      case 'backgroundSkills':
-        this.draft.growthRolls = [];
-        this.draft.learningRolls = [];
-        this.draft.pickedSkills = [];
-        this.draft.backgroundSkillMethod = 'roll';
-        // Remove skills that came from background tables (keep free skill from background)
-        break;
-      case 'class':
-        this.draft.classId = undefined;
-        this.draft.partialClasses = undefined;
-        break;
-      case 'foci':
-        this.draft.selectedFoci = [];
-        break;
-      case 'skills':
-        this.draft.hobbySkill = undefined;
-        break;
-      case 'psychic':
-        this.draft.psychicDisciplines = [];
-        this.draft.psychicTechniques = [];
-        break;
-      case 'hitpoints':
-        this.draft.hitPoints = undefined;
-        this.draft.hitPointRoll = undefined;
-        break;
-      case 'equipment':
-        this.draft.equipmentPackageId = undefined;
-        this.draft.equipment = [];
-        this.draft.credits = 0;
-        break;
-      case 'details':
-        this.draft.name = '';
-        this.draft.homeworld = '';
-        this.draft.species = 'Human';
-        this.draft.employer = '';
-        this.draft.goals = '';
-        this.draft.notes = '';
-        break;
-    }
+    const currentStep = this.draft.currentStep;
+    const snapshot = JSON.parse(this._stepSnapshot) as CharacterDraft;
+    // Restore to the snapshot but stay on the current step
+    snapshot.currentStep = currentStep;
+    this.draft = snapshot;
   }
 
   // Reset
