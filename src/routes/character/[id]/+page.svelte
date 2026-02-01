@@ -11,10 +11,10 @@
   import { getEquipmentById, ALL_EQUIPMENT } from '$data/equipment';
   import { formatModifier, getAttributeModifier } from '$data/attributes';
   import InventoryManager from '$lib/components/InventoryManager.svelte';
-  import PlayMode from '$lib/components/PlayMode.svelte';
+  import { calculateAC } from '$data/equipment';
   import type { Character, AttributeKey, ClassName, PartialClass, InventoryItem } from '$types/character';
 
-  type ViewMode = 'view' | 'edit' | 'play';
+  type ViewMode = 'view' | 'edit';
 
   let character = $state<Character | null>(null);
   let loading = $state(true);
@@ -139,18 +139,6 @@
     }
   }
 
-  function startPlay() {
-    viewMode = 'play';
-  }
-
-  function exitPlay() {
-    // Reload character from store to pick up any play-mode saves
-    const id = $page.params.id;
-    const found = characterStore.savedCharacters.find(c => c.id === id);
-    if (found) character = found;
-    viewMode = 'view';
-  }
-
   function printCharacter() {
     window.print();
   }
@@ -159,6 +147,16 @@
     if (!character) return;
     character.inventory = newInventory;
     character.credits = newCredits;
+    // Recalculate AC based on readied armor
+    const dexMod = getAttributeModifier(character.attributes.dexterity);
+    character.armorClass = calculateAC(newInventory, dexMod);
+    character.updatedAt = new Date().toISOString();
+    await characterStore.saveCharacter(character);
+  }
+
+  async function updateCurrentHP(newHP: number) {
+    if (!character) return;
+    character.hitPointsCurrent = Math.max(0, Math.min(character.hitPointsMax, newHP));
     character.updatedAt = new Date().toISOString();
     await characterStore.saveCharacter(character);
   }
@@ -264,19 +262,7 @@
       <a href="{base}/" class="btn btn-primary">Back to Home</a>
     </div>
   {:else if character}
-    {#if viewMode === 'play'}
-    <!-- Play Mode -->
-    <div class="mb-6">
-      <a href="{base}/" class="btn btn-ghost text-sm">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Back to Characters
-      </a>
-    </div>
-    <PlayMode {character} onExit={exitPlay} />
-
-    {:else if viewMode === 'view'}
+    {#if viewMode === 'view'}
     {@const background = getBackgroundById(character.backgroundId)}
     {@const charClass = getClassById(character.classId)}
     {@const partialClassNames = character.partialClasses?.map(pc =>
@@ -313,8 +299,17 @@
       <!-- Core Stats -->
       <div class="grid grid-cols-3 gap-4">
         <div class="card p-4 text-center">
-          <div class="text-3xl font-display text-red-400">
-            {character.hitPointsCurrent}/{character.hitPointsMax}
+          <div class="text-3xl font-display text-red-400 flex items-center justify-center gap-1">
+            <input
+              type="number"
+              min="0"
+              max={character.hitPointsMax}
+              value={character.hitPointsCurrent}
+              onchange={(e) => updateCurrentHP(parseInt((e.target as HTMLInputElement).value) || 0)}
+              class="w-12 bg-transparent text-center text-3xl font-display text-red-400 border-b border-red-400/30 focus:border-red-400 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <span class="text-slate-500">/</span>
+            <span>{character.hitPointsMax}</span>
           </div>
           <div class="text-xs text-slate-400 mt-1">Hit Points</div>
         </div>
@@ -441,13 +436,6 @@
       <div class="card p-4 print:hidden">
         <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Actions</h4>
         <div class="flex flex-wrap justify-center gap-3">
-          <button onclick={startPlay} class="btn bg-green-600 hover:bg-green-500 text-white">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Play
-          </button>
           <button onclick={startEdit} class="btn btn-primary">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -645,7 +633,7 @@
             <div class="flex items-center justify-between p-2 rounded bg-slate-800/50">
               <span class="text-sm {skill.isPsychic ? 'text-purple-400' : 'text-slate-300'}">{skill.name}</span>
               <select
-                value={getSkillRank(skill.id)}
+                value={String(getSkillRank(skill.id))}
                 onchange={(e) => updateSkillRank(skill.id, parseInt((e.target as HTMLSelectElement).value))}
                 class="w-16 px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
               >
@@ -672,7 +660,7 @@
                 <span class="text-xs text-slate-500 ml-2">({focus.type})</span>
               </div>
               <select
-                value={getFocusLevel(focus.id)}
+                value={String(getFocusLevel(focus.id))}
                 onchange={(e) => updateFocusLevel(focus.id, parseInt((e.target as HTMLSelectElement).value) as 0 | 1 | 2)}
                 class="w-20 px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
               >

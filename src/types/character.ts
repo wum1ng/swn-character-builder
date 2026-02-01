@@ -63,6 +63,7 @@ export interface Focus {
 export interface FocusLevel {
   description: string;
   bonusSkill?: string;
+  bonusSkillChoices?: string[];
   abilities: string[];
 }
 
@@ -123,6 +124,12 @@ export interface InventoryItem {
   itemId: string;
   location: ItemLocation;
   quantity: number;
+  // Custom item fields (when itemId starts with 'custom-')
+  customName?: string;
+  customCategory?: 'weapon' | 'armor' | 'gear';
+  customEncumbrance?: number;
+  customDamage?: string;
+  customArmorClass?: number;
 }
 
 export interface SavingThrows {
@@ -201,6 +208,7 @@ export interface CharacterDraft {
   replacedAttribute?: AttributeKey;
   
   backgroundId?: string;
+  freeSkillChoice?: string;
   backgroundSkillMethod: 'roll' | 'pick';
   growthRolls: number[];
   learningRolls: number[];

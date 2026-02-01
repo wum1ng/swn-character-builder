@@ -15,6 +15,12 @@
   let showAddItem = $state(false);
   let addSearch = $state('');
   let addCategory = $state<'all' | 'weapon' | 'armor' | 'gear'>('all');
+  let showCustomForm = $state(false);
+  let customName = $state('');
+  let customCategory = $state<'weapon' | 'armor' | 'gear'>('gear');
+  let customEncumbrance = $state(1);
+  let customDamage = $state('');
+  let customArmorClass = $state(0);
 
   // Encumbrance calculations
   const strength = $derived(character.attributes.strength || 10);
@@ -25,7 +31,7 @@
     inventory
       .filter(i => i.location === 'readied')
       .reduce((sum, i) => {
-        const item = getEquipmentById(i.itemId);
+        const item = getItemData(i);
         return sum + (item?.encumbrance ?? 0) * i.quantity;
       }, 0)
   );
@@ -34,7 +40,7 @@
     inventory
       .filter(i => i.location === 'stowed')
       .reduce((sum, i) => {
-        const item = getEquipmentById(i.itemId);
+        const item = getItemData(i);
         return sum + (item?.encumbrance ?? 0) * i.quantity;
       }, 0)
   );
@@ -57,10 +63,26 @@
     }
   });
 
+  function getItemData(item: InventoryItem): EquipmentItem | null {
+    if (item.itemId.startsWith('custom-')) {
+      return {
+        id: item.itemId,
+        name: item.customName || 'Custom Item',
+        category: item.customCategory || 'gear',
+        cost: 0,
+        encumbrance: item.customEncumbrance ?? 1,
+        techLevel: 4,
+        damage: item.customDamage || undefined,
+        armorClass: item.customArmorClass || undefined,
+      };
+    }
+    return getEquipmentById(item.itemId);
+  }
+
   function getItemsByLocation(location: ItemLocation): (InventoryItem & { data: EquipmentItem })[] {
     return inventory
       .filter(i => i.location === location)
-      .map(i => ({ ...i, data: getEquipmentById(i.itemId)! }))
+      .map(i => ({ ...i, data: getItemData(i)! }))
       .filter(i => i.data)
       .sort((a, b) => {
         const catOrder = { weapon: 0, armor: 1, gear: 2 };
@@ -83,12 +105,20 @@
       inventory.splice(idx, 1);
     }
 
-    // Add to target location
+    // Add to target location (carry custom fields for custom items)
     const existing = inventory.find(i => i.itemId === itemId && i.location === to);
     if (existing) {
       existing.quantity++;
     } else {
-      inventory.push({ itemId, location: to, quantity: 1 });
+      const newEntry: InventoryItem = { itemId, location: to, quantity: 1 };
+      if (source.customName) {
+        newEntry.customName = source.customName;
+        newEntry.customCategory = source.customCategory;
+        newEntry.customEncumbrance = source.customEncumbrance;
+        newEntry.customDamage = source.customDamage;
+        newEntry.customArmorClass = source.customArmorClass;
+      }
+      inventory.push(newEntry);
     }
 
     inventory = [...inventory];
@@ -111,9 +141,8 @@
   }
 
   function addItem(itemId: string) {
-    // Default: weapons/armor → readied, gear → stowed
-    const item = getEquipmentById(itemId);
-    const location: ItemLocation = (item?.category === 'weapon' || item?.category === 'armor') ? 'readied' : 'stowed';
+    // Default all new items to stowed
+    const location: ItemLocation = 'stowed';
 
     const existing = inventory.find(i => i.itemId === itemId && i.location === location);
     if (existing) {
@@ -124,6 +153,36 @@
 
     inventory = [...inventory];
     onUpdate(inventory, credits);
+  }
+
+  function addCustomItem() {
+    if (!customName.trim()) return;
+    const itemId = `custom-${Date.now()}`;
+    const item: InventoryItem = {
+      itemId,
+      location: 'stowed',
+      quantity: 1,
+      customName: customName.trim(),
+      customCategory: customCategory,
+      customEncumbrance: customEncumbrance,
+    };
+    if (customCategory === 'weapon' && customDamage.trim()) {
+      item.customDamage = customDamage.trim();
+    }
+    if (customCategory === 'armor' && customArmorClass > 0) {
+      item.customArmorClass = customArmorClass;
+    }
+    inventory.push(item);
+    inventory = [...inventory];
+    onUpdate(inventory, credits);
+
+    // Reset form
+    customName = '';
+    customCategory = 'gear';
+    customEncumbrance = 1;
+    customDamage = '';
+    customArmorClass = 0;
+    showCustomForm = false;
   }
 
   function updateCredits(value: number) {
@@ -212,12 +271,20 @@
           class="w-24 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-yellow-400 font-display"
         />
       </div>
-      <button
-        onclick={() => showAddItem = !showAddItem}
-        class="btn btn-primary text-xs px-3 py-1.5"
-      >
-        {showAddItem ? 'Close' : '+ Add Item'}
-      </button>
+      <div class="flex gap-2">
+        <button
+          onclick={() => { showCustomForm = !showCustomForm; showAddItem = false; }}
+          class="btn btn-secondary text-xs px-3 py-1.5"
+        >
+          {showCustomForm ? 'Close' : '+ Custom'}
+        </button>
+        <button
+          onclick={() => { showAddItem = !showAddItem; showCustomForm = false; }}
+          class="btn btn-primary text-xs px-3 py-1.5"
+        >
+          {showAddItem ? 'Close' : '+ Add Item'}
+        </button>
+      </div>
     </div>
   </div>
 
@@ -256,6 +323,50 @@
           </button>
         {/each}
       </div>
+    </div>
+  {/if}
+
+  <!-- Custom Item Form -->
+  {#if showCustomForm}
+    <div class="card p-4">
+      <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-3">Add Custom Item</h4>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-slate-400 mb-1">Name</label>
+          <input type="text" bind:value={customName} placeholder="Item name" class="input text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Type</label>
+          <select bind:value={customCategory} class="input select text-sm">
+            <option value="weapon">Weapon</option>
+            <option value="armor">Armor</option>
+            <option value="gear">Gear</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Encumbrance</label>
+          <input type="number" min="0" max="10" bind:value={customEncumbrance} class="input text-sm" />
+        </div>
+        {#if customCategory === 'weapon'}
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Damage</label>
+            <input type="text" bind:value={customDamage} placeholder="e.g. 1d8" class="input text-sm" />
+          </div>
+        {/if}
+        {#if customCategory === 'armor'}
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Armor Class</label>
+            <input type="number" min="10" max="21" bind:value={customArmorClass} class="input text-sm" />
+          </div>
+        {/if}
+      </div>
+      <button
+        onclick={addCustomItem}
+        disabled={!customName.trim()}
+        class="btn btn-primary text-sm mt-3 w-full disabled:opacity-50"
+      >
+        Add Custom Item
+      </button>
     </div>
   {/if}
 

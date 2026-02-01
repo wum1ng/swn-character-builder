@@ -68,7 +68,7 @@ export const FOCI: Focus[] = [
     description: 'You are skilled at close-quarters fighting and using small weapons in tight spaces.',
     level1: {
       description: 'Gain Punch or Stab as a bonus skill. You can use pistol-sized weapons in melee without penalty.',
-      bonusSkill: 'punch',
+      bonusSkillChoices: ['punch', 'stab'],
       abilities: ['Use pistols in melee without penalty', 'Ignore Shock damage from attacks']
     },
     level2: {
@@ -215,7 +215,7 @@ export const FOCI: Focus[] = [
     description: 'You know how to hit where it hurts most.',
     level1: {
       description: 'Gain Punch or Stab as a bonus skill. Your Shock damage is +2.',
-      bonusSkill: 'punch',
+      bonusSkillChoices: ['punch', 'stab'],
       abilities: ['+2 Shock damage']
     },
     level2: {

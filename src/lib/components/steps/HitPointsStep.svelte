@@ -4,6 +4,7 @@
   
   let isRolling = $state(false);
   let diceResult = $state<number | null>(null);
+  let useMaxHP = $state(false);
   
   const conMod = $derived(
     characterStore.draft.attributes.constitution 
@@ -25,23 +26,32 @@
   
   async function rollHitPoints() {
     isRolling = true;
-    
+    useMaxHP = false;
+
     // Animate the roll
     for (let i = 0; i < 8; i++) {
       diceResult = Math.floor(Math.random() * 6) + 1;
       await new Promise(r => setTimeout(r, 80));
     }
-    
+
     // Final roll
     const finalRoll = Math.floor(Math.random() * 6) + 1;
     diceResult = finalRoll;
     characterStore.draft.hitPointRoll = finalRoll;
-    
+
     // Calculate total
     let hp = finalRoll + conMod + classBonus + focusBonus;
     characterStore.draft.hitPoints = Math.max(1, hp);
-    
+
     isRolling = false;
+  }
+
+  function applyMaxHP() {
+    useMaxHP = true;
+    diceResult = 6;
+    characterStore.draft.hitPointRoll = 6;
+    let hp = 6 + conMod + classBonus + focusBonus;
+    characterStore.draft.hitPoints = Math.max(1, hp);
   }
 </script>
 
@@ -113,34 +123,51 @@
     </div>
   </div>
   
-  <!-- Roll Button -->
-  <div class="text-center">
-    <button
-      onclick={rollHitPoints}
-      disabled={isRolling}
-      class="btn btn-primary px-10 py-4 text-lg"
-    >
-      {#if isRolling}
-        Rolling...
-      {:else if characterStore.draft.hitPoints}
-        🎲 Reroll Hit Points
-      {:else}
-        🎲 Roll Hit Points
-      {/if}
-    </button>
-    
+  <!-- Roll / Max HP Buttons -->
+  <div class="text-center space-y-3">
+    <div class="flex flex-wrap items-center justify-center gap-3">
+      <button
+        onclick={rollHitPoints}
+        disabled={isRolling}
+        class="btn btn-primary px-8 py-4 text-lg"
+      >
+        {#if isRolling}
+          Rolling...
+        {:else if characterStore.draft.hitPoints && !useMaxHP}
+          Reroll Hit Points
+        {:else}
+          Roll Hit Points
+        {/if}
+      </button>
+      <button
+        onclick={applyMaxHP}
+        disabled={isRolling}
+        class="btn btn-secondary px-6 py-4 text-lg {useMaxHP ? 'border-green-500 border-glow-blue' : ''}"
+      >
+        Max HP (6)
+      </button>
+    </div>
+
     {#if characterStore.draft.hitPoints}
-      <p class="mt-4 text-sm text-slate-400">
-        You can reroll if you don't like the result
+      <p class="text-sm text-slate-400">
+        {#if useMaxHP}
+          Using maximum roll of 6 for level 1.
+        {:else}
+          You can reroll if you don't like the result, or use Max HP.
+        {/if}
       </p>
     {/if}
   </div>
-  
+
   <!-- Info -->
   <div class="text-sm text-slate-400 bg-slate-800/50 rounded-lg p-4">
     <p>
       <strong class="text-cyan-400">Note:</strong> No penalty can reduce your maximum hit points below 1.
       At higher levels, you'll roll additional dice and add your Constitution modifier again.
+    </p>
+    <p class="mt-2">
+      <strong class="text-cyan-400">Max HP:</strong> Some groups allow starting characters to take
+      the maximum roll (6) instead of rolling for hit points.
     </p>
   </div>
 </div>
