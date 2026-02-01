@@ -491,9 +491,7 @@
         </div>
       </div>
     </div>
-    {/if}
-
-    {#if viewMode === 'edit' && editedCharacter}
+    {:else if viewMode === 'edit' && editedCharacter}
     <!-- Edit Mode -->
     <div class="mb-6 flex items-center justify-between">
       <button onclick={cancelEdit} class="btn btn-ghost text-sm">
