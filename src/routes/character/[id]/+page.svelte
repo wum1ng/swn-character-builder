@@ -25,7 +25,6 @@
   let editedCharacter = $state<Character | null>(null);
   let saveError = $state<string | null>(null);
 
-  // Backward compat getters
   const isEditing = $derived(viewMode === 'edit');
 
   const attributes: AttributeKey[] = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
@@ -264,7 +263,8 @@
       <div class="text-red-400 mb-4">{error}</div>
       <a href="{base}/" class="btn btn-primary">Back to Home</a>
     </div>
-  {:else if character && viewMode === 'play'}
+  {:else if character}
+    {#if viewMode === 'play'}
     <!-- Play Mode -->
     <div class="mb-6">
       <a href="{base}/" class="btn btn-ghost text-sm">
@@ -276,7 +276,7 @@
     </div>
     <PlayMode {character} onExit={exitPlay} />
 
-  {:else if character && viewMode === 'view'}
+    {:else if viewMode === 'view'}
     {@const background = getBackgroundById(character.backgroundId)}
     {@const charClass = getClassById(character.classId)}
     {@const partialClassNames = character.partialClasses?.map(pc =>
@@ -491,7 +491,9 @@
         </div>
       </div>
     </div>
-  {:else if editedCharacter && isEditing}
+    {/if}
+
+    {#if viewMode === 'edit' && editedCharacter}
     <!-- Edit Mode -->
     <div class="mb-6 flex items-center justify-between">
       <button onclick={cancelEdit} class="btn btn-ghost text-sm">
@@ -740,5 +742,6 @@
         </button>
       </div>
     </div>
+  {/if}
   {/if}
 </div>

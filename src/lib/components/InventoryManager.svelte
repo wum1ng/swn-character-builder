@@ -10,17 +10,11 @@
 
   let { character, onUpdate }: Props = $props();
 
-  let inventory = $state<InventoryItem[]>([]);
-  let credits = $state(0);
+  let inventory = $state<InventoryItem[]>(JSON.parse(JSON.stringify(character.inventory || [])));
+  let credits = $state(character.credits);
   let showAddItem = $state(false);
   let addSearch = $state('');
   let addCategory = $state<'all' | 'weapon' | 'armor' | 'gear'>('all');
-
-  // Initialize from character
-  $effect(() => {
-    inventory = JSON.parse(JSON.stringify(character.inventory || []));
-    credits = character.credits;
-  });
 
   // Encumbrance calculations
   const strength = $derived(character.attributes.strength || 10);

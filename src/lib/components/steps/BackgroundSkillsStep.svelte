@@ -15,6 +15,7 @@
     applied: boolean;
     choice?: string;
     splitBonus?: { attr1: AttributeKey; attr2: AttributeKey };
+    isDuplicate?: boolean;
   }
 
   interface QuickSkillChoice {
@@ -78,6 +79,21 @@
     characterStore.draft.backgroundSkillMethod = 'roll';
   }
 
+  function checkDuplicate(tableType: TableType, result: GrowthEntry | string): boolean {
+    if (tableType === 'growth') {
+      const entry = result as GrowthEntry;
+      // Only skills can be duplicates (not attribute bonuses or "any" choices)
+      if (entry.type !== 'skill') return false;
+      const skillId = entry.value as string;
+      return characterStore.draft.skills.some(s => s.skillId === skillId);
+    } else {
+      const skillId = result as string;
+      // "any" choices are never duplicates since the player picks
+      if (skillId === 'any-combat' || skillId === 'any-skill') return false;
+      return characterStore.draft.skills.some(s => s.skillId === skillId);
+    }
+  }
+
   function rollOnTable(tableType: TableType) {
     if (!background || rollsRemaining <= 0) return;
 
@@ -96,13 +112,46 @@
       result = skill;
     }
 
+    const isDuplicate = checkDuplicate(tableType, result);
+
     rolls = [...rolls, {
       tableType,
       dieRoll,
       result,
-      applied: false
+      applied: false,
+      isDuplicate
     }];
     rollsRemaining--;
+  }
+
+  function reroll(index: number) {
+    if (!background) return;
+    const oldRoll = rolls[index];
+    const tableType = oldRoll.tableType;
+
+    let dieRoll: number;
+    let result: GrowthEntry | string;
+
+    if (tableType === 'growth') {
+      dieRoll = Math.floor(Math.random() * 6) + 1;
+      const entry = background.growthTable.find(e => e.roll === dieRoll);
+      result = entry!;
+    } else {
+      dieRoll = Math.floor(Math.random() * 8) + 1;
+      const skill = background.learningTable[dieRoll - 1];
+      result = skill;
+    }
+
+    const isDuplicate = checkDuplicate(tableType, result);
+
+    rolls[index] = {
+      tableType,
+      dieRoll,
+      result,
+      applied: false,
+      isDuplicate
+    };
+    rolls = [...rolls];
   }
 
   function applyRoll(index: number, choice?: string, splitBonus?: { attr1: AttributeKey; attr2: AttributeKey }) {
@@ -221,7 +270,7 @@
           <div class="flex flex-wrap gap-2">
             {#each background.quickSkills as skill}
               <span class="px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-300">
-                {skill === 'any-combat' ? 'Any Combat' : skill === 'any-skill' ? 'Any Skill' : skill}
+                {skill === 'any-combat' ? 'Any Combat' : skill === 'any-skill' ? 'Any Skill' : (getSkillById(skill)?.name || skill)}
               </span>
             {/each}
           </div>
@@ -252,7 +301,7 @@
           {#each background.quickSkills as skill}
             {#if skill !== 'any-combat' && skill !== 'any-skill'}
               <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-300">
-                {skill}
+                {getSkillById(skill)?.name || skill}
               </span>
             {/if}
           {/each}
@@ -274,32 +323,29 @@
                 {#if choice.selected}
                   <div class="flex items-center gap-2">
                     <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-300">
-                      {choice.selected}
+                      {getSkillById(choice.selected)?.name || choice.selected}
                     </span>
                     <span class="text-green-400 text-sm">✓ Selected</span>
                   </div>
                 {:else}
-                  <div class="flex flex-wrap gap-2">
+                  <select
+                    class="input select text-sm max-w-xs"
+                    onchange={(e) => {
+                      const val = (e.target as HTMLSelectElement).value;
+                      if (val) selectQuickSkillChoice(i, val);
+                    }}
+                  >
+                    <option value="">-- Select a skill --</option>
                     {#if choice.type === 'any-combat'}
                       {#each COMBAT_SKILLS as skillId}
-                        <button
-                          onclick={() => selectQuickSkillChoice(i, skillId)}
-                          class="btn btn-ghost text-xs py-1 px-3"
-                        >
-                          {skillId}
-                        </button>
+                        <option value={skillId}>{getSkillById(skillId)?.name || skillId}</option>
                       {/each}
                     {:else}
                       {#each nonPsychicSkills as skill}
-                        <button
-                          onclick={() => selectQuickSkillChoice(i, skill.id)}
-                          class="btn btn-ghost text-xs py-1 px-2"
-                        >
-                          {skill.name}
-                        </button>
+                        <option value={skill.id}>{skill.name}</option>
                       {/each}
                     {/if}
-                  </div>
+                  </select>
                 {/if}
               </div>
             {/each}
@@ -362,18 +408,20 @@
             </h4>
 
             {#each rolls as roll, i}
-              <div class="mb-4 p-4 rounded bg-slate-800/50 {roll.applied ? 'opacity-60' : ''}">
+              <div class="mb-4 p-4 rounded bg-slate-800/50 {roll.applied ? 'opacity-60' : ''} {roll.isDuplicate && !roll.applied ? 'ring-1 ring-yellow-500/40' : ''}">
                 <!-- Die Result -->
                 <div class="flex items-center gap-4 mb-3">
                   <span class="w-10 h-10 rounded-lg {roll.tableType === 'growth' ? 'bg-purple-500/30' : 'bg-cyan-500/30'} flex items-center justify-center font-display text-xl text-white">
                     {roll.dieRoll}
                   </span>
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
                     <span class="px-2 py-1 text-xs rounded {roll.tableType === 'growth' ? 'bg-purple-500/30 text-purple-300' : 'bg-cyan-500/30 text-cyan-300'}">
                       {roll.tableType === 'growth' ? 'Growth (d6)' : 'Learning (d8)'}
                     </span>
                     {#if roll.applied}
                       <span class="text-green-400 text-sm">✓ Applied</span>
+                    {:else if roll.isDuplicate}
+                      <span class="text-yellow-400 text-xs">Duplicate - you already have this skill</span>
                     {/if}
                   </div>
                 </div>
@@ -436,33 +484,51 @@
                           </div>
                         </div>
                       {:else if entry.type === 'skill'}
-                        <button
-                          onclick={() => applyRoll(i)}
-                          class="btn btn-primary text-xs py-1 px-3"
-                        >
-                          Add {entry.value}
-                        </button>
-                      {:else if entry.type === 'any_skill'}
-                        <div class="flex flex-wrap gap-2">
-                          {#each nonPsychicSkills as skill}
+                        <div class="flex items-center gap-2">
+                          <button
+                            onclick={() => applyRoll(i)}
+                            class="btn btn-primary text-xs py-1 px-3"
+                          >
+                            {roll.isDuplicate ? `Level up ${entry.value}` : `Add ${entry.value}`}
+                          </button>
+                          {#if roll.isDuplicate}
                             <button
-                              onclick={() => applyRoll(i, skill.id)}
-                              class="btn btn-ghost text-xs py-1 px-2"
+                              onclick={() => reroll(i)}
+                              class="btn btn-secondary text-xs py-1 px-3"
                             >
-                              {skill.name}
+                              Reroll
                             </button>
-                          {/each}
+                          {/if}
+                        </div>
+                      {:else if entry.type === 'any_skill'}
+                        <div class="flex items-center gap-2">
+                          <select
+                            class="input select text-sm max-w-xs"
+                            onchange={(e) => {
+                              const val = (e.target as HTMLSelectElement).value;
+                              if (val) applyRoll(i, val);
+                            }}
+                          >
+                            <option value="">-- Choose any skill --</option>
+                            {#each nonPsychicSkills as skill}
+                              <option value={skill.id}>{skill.name}</option>
+                            {/each}
+                          </select>
                         </div>
                       {:else if entry.type === 'any_combat'}
-                        <div class="flex flex-wrap gap-2">
-                          {#each COMBAT_SKILLS as skillId}
-                            <button
-                              onclick={() => applyRoll(i, skillId)}
-                              class="btn btn-ghost text-xs py-1 px-2"
-                            >
-                              {skillId}
-                            </button>
-                          {/each}
+                        <div class="flex items-center gap-2">
+                          <select
+                            class="input select text-sm max-w-xs"
+                            onchange={(e) => {
+                              const val = (e.target as HTMLSelectElement).value;
+                              if (val) applyRoll(i, val);
+                            }}
+                          >
+                            <option value="">-- Choose a combat skill --</option>
+                            {#each COMBAT_SKILLS as skillId}
+                              <option value={skillId}>{getSkillById(skillId)?.name || skillId}</option>
+                            {/each}
+                          </select>
                         </div>
                       {/if}
                     {:else}
@@ -474,34 +540,52 @@
                       </p>
 
                       {#if skillResult === 'any-combat'}
-                        <div class="flex flex-wrap gap-2">
-                          {#each COMBAT_SKILLS as skillId}
-                            <button
-                              onclick={() => applyRoll(i, skillId)}
-                              class="btn btn-ghost text-xs py-1 px-2"
-                            >
-                              {skillId}
-                            </button>
-                          {/each}
+                        <div class="flex items-center gap-2">
+                          <select
+                            class="input select text-sm max-w-xs"
+                            onchange={(e) => {
+                              const val = (e.target as HTMLSelectElement).value;
+                              if (val) applyRoll(i, val);
+                            }}
+                          >
+                            <option value="">-- Choose a combat skill --</option>
+                            {#each COMBAT_SKILLS as skillId}
+                              <option value={skillId}>{getSkillById(skillId)?.name || skillId}</option>
+                            {/each}
+                          </select>
                         </div>
                       {:else if skillResult === 'any-skill'}
-                        <div class="flex flex-wrap gap-2">
-                          {#each nonPsychicSkills as skill}
-                            <button
-                              onclick={() => applyRoll(i, skill.id)}
-                              class="btn btn-ghost text-xs py-1 px-2"
-                            >
-                              {skill.name}
-                            </button>
-                          {/each}
+                        <div class="flex items-center gap-2">
+                          <select
+                            class="input select text-sm max-w-xs"
+                            onchange={(e) => {
+                              const val = (e.target as HTMLSelectElement).value;
+                              if (val) applyRoll(i, val);
+                            }}
+                          >
+                            <option value="">-- Choose any skill --</option>
+                            {#each nonPsychicSkills as skill}
+                              <option value={skill.id}>{skill.name}</option>
+                            {/each}
+                          </select>
                         </div>
                       {:else}
-                        <button
-                          onclick={() => applyRoll(i)}
-                          class="btn btn-primary text-xs py-1 px-3"
-                        >
-                          Add {skillResult}
-                        </button>
+                        <div class="flex items-center gap-2">
+                          <button
+                            onclick={() => applyRoll(i)}
+                            class="btn btn-primary text-xs py-1 px-3"
+                          >
+                            {roll.isDuplicate ? `Level up ${skillResult}` : `Add ${skillResult}`}
+                          </button>
+                          {#if roll.isDuplicate}
+                            <button
+                              onclick={() => reroll(i)}
+                              class="btn btn-secondary text-xs py-1 px-3"
+                            >
+                              Reroll
+                            </button>
+                          {/if}
+                        </div>
                       {/if}
                     {/if}
                   </div>
