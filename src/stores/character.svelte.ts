@@ -169,11 +169,14 @@ class CharacterStore {
   error = $state<string | null>(null);
   editingCharacterId = $state<string | null>(null);
 
-  // Snapshot of draft when entering a step, for reset
-  private _stepSnapshot: string = JSON.stringify(createInitialDraft());
+  // Snapshot of draft per step, for reset
+  private _stepSnapshots: Record<string, string> = {};
 
-  private _snapshotDraft() {
-    this._stepSnapshot = JSON.stringify(this.draft);
+  private _snapshotStep(step: string) {
+    // Save snapshot for a step, only if not already saved
+    if (!this._stepSnapshots[step]) {
+      this._stepSnapshots[step] = JSON.stringify(this.draft);
+    }
   }
 
   // Step navigation
@@ -254,13 +257,12 @@ class CharacterStore {
 
   // Navigation actions
   goToStep(step: CreationStep) {
-    this._snapshotDraft();
+    this._snapshotStep(step);
     this.draft.currentStep = step;
   }
 
   nextStep() {
     if (this.canGoForward && this.currentStepIndex < this.steps.length - 1) {
-      this._snapshotDraft();
       // Skip psychic step if not a psychic class
       let nextIndex = this.currentStepIndex + 1;
       if (this.steps[nextIndex] === 'psychic' &&
@@ -268,13 +270,14 @@ class CharacterStore {
           !this.draft.partialClasses?.includes('partial-psychic')) {
         nextIndex++;
       }
-      this.draft.currentStep = this.steps[nextIndex];
+      const nextStepName = this.steps[nextIndex];
+      this._snapshotStep(nextStepName);
+      this.draft.currentStep = nextStepName;
     }
   }
 
   prevStep() {
     if (this.canGoBack) {
-      this._snapshotDraft();
       let prevIndex = this.currentStepIndex - 1;
       // Skip psychic step if not a psychic class
       if (this.steps[prevIndex] === 'psychic' &&
@@ -282,7 +285,9 @@ class CharacterStore {
           !this.draft.partialClasses?.includes('partial-psychic')) {
         prevIndex--;
       }
-      this.draft.currentStep = this.steps[Math.max(0, prevIndex)];
+      const prevStepName = this.steps[Math.max(0, prevIndex)];
+      this._snapshotStep(prevStepName);
+      this.draft.currentStep = prevStepName;
     }
   }
 
@@ -315,10 +320,11 @@ class CharacterStore {
     this.draft.growthRolls = [];
     this.draft.learningRolls = [];
     this.draft.pickedSkills = [];
-    
-    // Add free skill from background
+    this.draft.freeSkillChoice = undefined;
+
+    // Add free skill from background (skip 'any-' choices that need player selection)
     const background = getBackgroundById(backgroundId);
-    if (background) {
+    if (background && !background.freeSkill.startsWith('any-')) {
       this.addFreeSkill(background.freeSkill);
     }
   }
@@ -368,9 +374,9 @@ class CharacterStore {
       existing.level = level;
     } else {
       this.draft.selectedFoci.push({ focusId, level });
-      // Add bonus skill from focus level 1
+      // Add bonus skill from focus level 1 (only if single skill, not a choice)
       const focus = getFocusById(focusId);
-      if (focus?.level1.bonusSkill) {
+      if (focus?.level1.bonusSkill && !focus.level1.bonusSkillChoices) {
         this.addFreeSkill(focus.level1.bonusSkill);
       }
     }
@@ -661,19 +667,24 @@ class CharacterStore {
     this.draft.currentStep = 'summary';
   }
 
-  // Restore draft to the snapshot taken when the current step was entered
+  // Restore draft to the snapshot taken when the current step was first entered
   resetCurrentStep() {
     const currentStep = this.draft.currentStep;
-    const snapshot = JSON.parse(this._stepSnapshot) as CharacterDraft;
-    // Restore to the snapshot but stay on the current step
-    snapshot.currentStep = currentStep;
-    this.draft = snapshot;
+    const snapshotStr = this._stepSnapshots[currentStep];
+    if (snapshotStr) {
+      const snapshot = JSON.parse(snapshotStr) as CharacterDraft;
+      snapshot.currentStep = currentStep;
+      this.draft = snapshot;
+      // Clear snapshot so re-entering re-snapshots fresh
+      delete this._stepSnapshots[currentStep];
+    }
   }
 
   // Reset
   reset() {
     this.draft = createInitialDraft();
     this.editingCharacterId = null;
+    this._stepSnapshots = {};
   }
 }
 

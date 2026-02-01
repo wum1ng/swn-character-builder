@@ -1,7 +1,11 @@
 <script lang="ts">
   import { characterStore } from '$stores/character.svelte';
   import { FOCI, COMBAT_FOCI, NON_COMBAT_FOCI, PSYCHIC_FOCI, getFocusById } from '$data/foci';
+  import { getSkillById } from '$data/skills';
   import type { Focus } from '$types/character';
+
+  // Track focus bonus skill choices (focusId -> chosen skillId)
+  let focusSkillChoices = $state<Record<string, string>>({});
   
   let activeTab = $state<'all' | 'combat' | 'non-combat' | 'psychic'>('all');
   let expandedId = $state<string | null>(null);
@@ -45,10 +49,16 @@
   
   function toggleFocus(focus: Focus) {
     if (isSelected(focus.id)) {
+      delete focusSkillChoices[focus.id];
       characterStore.removeFocus(focus.id);
     } else {
       characterStore.addFocus(focus.id, 1);
     }
+  }
+
+  function selectFocusBonusSkill(focusId: string, skillId: string) {
+    focusSkillChoices[focusId] = skillId;
+    characterStore.addFreeSkill(skillId);
   }
   
   function upgradeFocus(focusId: string) {
@@ -141,6 +151,10 @@
                   <span class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-300">
                     +{focus.level1.bonusSkill}
                   </span>
+                {:else if focus.level1.bonusSkillChoices}
+                  <span class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-300">
+                    +{focus.level1.bonusSkillChoices.map(id => getSkillById(id)?.name || id).join(' or ')}
+                  </span>
                 {/if}
               </div>
               <p class="text-xs text-slate-400">{focus.level1.description}</p>
@@ -166,13 +180,37 @@
           </div>
         {/if}
         
-        <!-- Level Indicator -->
+        <!-- Level Indicator + Bonus Skill Choice -->
         {#if selected}
           <div class="mt-3 flex gap-2">
             <span class="px-2 py-1 text-xs rounded bg-cyan-500/20 text-cyan-400">
               Level {level}
             </span>
           </div>
+          {@const focusData = getFocusById(focus.id)}
+          {#if focusData?.level1.bonusSkillChoices}
+            <div class="mt-2">
+              {#if focusSkillChoices[focus.id]}
+                <span class="text-xs text-green-400">
+                  Bonus skill: {getSkillById(focusSkillChoices[focus.id])?.name || focusSkillChoices[focus.id]}
+                </span>
+              {:else}
+                <p class="text-xs text-slate-400 mb-1">Choose bonus skill:</p>
+                <select
+                  class="w-full px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
+                  onchange={(e) => {
+                    const val = (e.target as HTMLSelectElement).value;
+                    if (val) selectFocusBonusSkill(focus.id, val);
+                  }}
+                >
+                  <option value="">-- Select --</option>
+                  {#each focusData.level1.bonusSkillChoices as skillId}
+                    <option value={skillId}>{getSkillById(skillId)?.name || skillId}</option>
+                  {/each}
+                </select>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </div>
     {/each}

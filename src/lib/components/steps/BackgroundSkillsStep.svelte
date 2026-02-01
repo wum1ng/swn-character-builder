@@ -36,6 +36,16 @@
 
   const nonPsychicSkills = SKILLS.filter(s => !s.isPsychic);
 
+  // Whether the background's free skill needs a player choice
+  const needsFreeSkillChoice = $derived(
+    background?.freeSkill === 'any-combat' || background?.freeSkill === 'any-skill'
+  );
+
+  function selectFreeSkill(skillId: string) {
+    characterStore.draft.freeSkillChoice = skillId;
+    characterStore.addFreeSkill(skillId);
+  }
+
   function selectQuickSkills() {
     if (!background) return;
     selectedMethod = 'quick';
@@ -251,12 +261,51 @@
       <h3 class="font-display text-lg tracking-wider mb-2">Background Skills</h3>
       <p class="text-sm text-slate-400">
         Your <span class="text-purple-400">{background.name}</span> background gives you
-        <span class="text-green-400">{background.freeSkill}</span> as a free skill.
-        Now choose how to gain additional skills.
+        {#if needsFreeSkillChoice}
+          a choice of <span class="text-green-400">{background.freeSkill === 'any-combat' ? 'combat skill' : 'any skill'}</span>
+        {:else}
+          <span class="text-green-400">{getSkillById(background.freeSkill)?.name || background.freeSkill}</span>
+        {/if}
+        as a free skill.
+        {#if !needsFreeSkillChoice || characterStore.draft.freeSkillChoice}
+          Now choose how to gain additional skills.
+        {/if}
       </p>
     </div>
 
-    {#if !selectedMethod}
+    <!-- Free skill choice (for backgrounds with any-combat/any-skill) -->
+    {#if needsFreeSkillChoice && !characterStore.draft.freeSkillChoice}
+      <div class="card p-4 border-green-500/30">
+        <h4 class="font-display text-green-400 mb-3">Choose Your Free Skill</h4>
+        <p class="text-sm text-slate-300 mb-3">
+          {#if background.freeSkill === 'any-combat'}
+            Select a combat skill as your free background skill:
+          {:else}
+            Select any skill as your free background skill:
+          {/if}
+        </p>
+        <select
+          class="input select text-sm max-w-xs"
+          onchange={(e) => {
+            const val = (e.target as HTMLSelectElement).value;
+            if (val) selectFreeSkill(val);
+          }}
+        >
+          <option value="">-- Select a skill --</option>
+          {#if background.freeSkill === 'any-combat'}
+            {#each COMBAT_SKILLS as skillId}
+              <option value={skillId}>{getSkillById(skillId)?.name || skillId}</option>
+            {/each}
+          {:else}
+            {#each nonPsychicSkills as skill}
+              <option value={skill.id}>{skill.name}</option>
+            {/each}
+          {/if}
+        </select>
+      </div>
+    {/if}
+
+    {#if (!needsFreeSkillChoice || characterStore.draft.freeSkillChoice) && !selectedMethod}
       <!-- Method Selection -->
       <div class="grid gap-4 sm:grid-cols-2">
         <button
@@ -357,9 +406,16 @@
             selectedMethod = null;
             quickSkillChoices = [];
             characterStore.draft.pickedSkills = [];
-            // Reset skills added from quick selection
+            // Reset skills added from quick selection (keep free skill choice)
+            const keepSkills = new Set<string>();
+            if (background?.freeSkill && !background.freeSkill.startsWith('any-')) {
+              keepSkills.add(background.freeSkill);
+            }
+            if (characterStore.draft.freeSkillChoice) {
+              keepSkills.add(characterStore.draft.freeSkillChoice);
+            }
             characterStore.draft.skills = characterStore.draft.skills.filter(
-              s => s.skillId === background?.freeSkill
+              s => keepSkills.has(s.skillId)
             );
           }}
           class="mt-4 text-sm text-slate-400 hover:text-white"
@@ -621,9 +677,16 @@
             rollsRemaining = 3;
             splitSelections = {};
             characterStore.draft.pickedSkills = [];
-            // Reset skills added from rolling (keep only background free skill)
+            // Reset skills added from rolling (keep free skill choice)
+            const keepSkills = new Set<string>();
+            if (background?.freeSkill && !background.freeSkill.startsWith('any-')) {
+              keepSkills.add(background.freeSkill);
+            }
+            if (characterStore.draft.freeSkillChoice) {
+              keepSkills.add(characterStore.draft.freeSkillChoice);
+            }
             characterStore.draft.skills = characterStore.draft.skills.filter(
-              s => s.skillId === background?.freeSkill
+              s => keepSkills.has(s.skillId)
             );
           }}
           class="text-sm text-slate-400 hover:text-white"

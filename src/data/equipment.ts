@@ -710,12 +710,21 @@ export const STARTING_CREDITS = 2000;
 
 // Calculate AC from readied inventory items + Dex modifier
 // SWN: AC = best armor AC (or 10 unarmored) + Dex mod + shield bonus
-export function calculateAC(inventory: { itemId: string; location: string; quantity: number }[], dexMod: number): number {
+export function calculateAC(inventory: { itemId: string; location: string; quantity: number; customCategory?: string; customArmorClass?: number }[], dexMod: number): number {
   let bestArmorAC = 10; // base unarmored
   let shieldBonus = 0;
 
   for (const inv of inventory) {
     if (inv.location !== 'readied') continue;
+
+    // Handle custom armor items
+    if (inv.itemId.startsWith('custom-')) {
+      if (inv.customCategory === 'armor' && inv.customArmorClass && inv.customArmorClass > bestArmorAC) {
+        bestArmorAC = inv.customArmorClass;
+      }
+      continue;
+    }
+
     const item = getEquipmentById(inv.itemId);
     if (!item || item.category !== 'armor') continue;
 
