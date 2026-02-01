@@ -450,7 +450,8 @@
                             </div>
                           </div>
 
-                          <!-- Option 2: +1 to two different stats -->
+                          {#if entry.value >= 2}
+                          <!-- Option 2: +1 to two different stats (only for +2 bonuses) -->
                           <div>
                             <p class="text-xs text-slate-400 mb-2">Or +1 to two different attributes:</p>
                             <div class="flex flex-wrap items-center gap-2">
@@ -482,6 +483,7 @@
                               </button>
                             </div>
                           </div>
+                          {/if}
                         </div>
                       {:else if entry.type === 'skill'}
                         <div class="flex items-center gap-2">
