@@ -216,8 +216,8 @@
         </button>
 
         <div class="flex items-center gap-2">
-          <button onclick={() => characterStore.reset()} class="btn btn-ghost text-red-400">
-            Reset
+          <button onclick={() => characterStore.resetCurrentStep()} class="btn btn-ghost text-red-400">
+            Reset Step
           </button>
 
           {#if characterStore.draft.currentStep !== 'summary'}

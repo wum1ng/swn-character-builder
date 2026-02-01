@@ -651,6 +651,64 @@ class CharacterStore {
     this.draft.currentStep = 'summary';
   }
 
+  // Reset only the current step's data, keeping everything else
+  resetCurrentStep() {
+    const step = this.draft.currentStep;
+    switch (step) {
+      case 'attributes':
+        this.draft.attributes = {};
+        this.draft.attributeMethod = 'random';
+        this.draft.replacedAttribute = undefined;
+        break;
+      case 'background':
+        this.draft.backgroundId = undefined;
+        // Also clear background skills since they depend on background
+        this.draft.growthRolls = [];
+        this.draft.learningRolls = [];
+        this.draft.pickedSkills = [];
+        this.draft.backgroundSkillMethod = 'roll';
+        break;
+      case 'backgroundSkills':
+        this.draft.growthRolls = [];
+        this.draft.learningRolls = [];
+        this.draft.pickedSkills = [];
+        this.draft.backgroundSkillMethod = 'roll';
+        // Remove skills that came from background tables (keep free skill from background)
+        break;
+      case 'class':
+        this.draft.classId = undefined;
+        this.draft.partialClasses = undefined;
+        break;
+      case 'foci':
+        this.draft.selectedFoci = [];
+        break;
+      case 'skills':
+        this.draft.hobbySkill = undefined;
+        break;
+      case 'psychic':
+        this.draft.psychicDisciplines = [];
+        this.draft.psychicTechniques = [];
+        break;
+      case 'hitpoints':
+        this.draft.hitPoints = undefined;
+        this.draft.hitPointRoll = undefined;
+        break;
+      case 'equipment':
+        this.draft.equipmentPackageId = undefined;
+        this.draft.equipment = [];
+        this.draft.credits = 0;
+        break;
+      case 'details':
+        this.draft.name = '';
+        this.draft.homeworld = '';
+        this.draft.species = 'Human';
+        this.draft.employer = '';
+        this.draft.goals = '';
+        this.draft.notes = '';
+        break;
+    }
+  }
+
   // Reset
   reset() {
     this.draft = createInitialDraft();
