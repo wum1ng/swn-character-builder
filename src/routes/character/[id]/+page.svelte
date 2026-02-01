@@ -11,16 +11,22 @@
   import { getEquipmentById, ALL_EQUIPMENT } from '$data/equipment';
   import { formatModifier, getAttributeModifier } from '$data/attributes';
   import InventoryManager from '$lib/components/InventoryManager.svelte';
+  import PlayMode from '$lib/components/PlayMode.svelte';
   import type { Character, AttributeKey, ClassName, PartialClass, InventoryItem } from '$types/character';
+
+  type ViewMode = 'view' | 'edit' | 'play';
 
   let character = $state<Character | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let copySuccess = $state(false);
   let showDeleteConfirm = $state(false);
-  let isEditing = $state(false);
+  let viewMode = $state<ViewMode>('view');
   let editedCharacter = $state<Character | null>(null);
   let saveError = $state<string | null>(null);
+
+  // Backward compat getters
+  const isEditing = $derived(viewMode === 'edit');
 
   const attributes: AttributeKey[] = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
 
@@ -110,12 +116,12 @@
   function startEdit() {
     if (!character) return;
     editedCharacter = JSON.parse(JSON.stringify(character));
-    isEditing = true;
+    viewMode = 'edit';
     saveError = null;
   }
 
   function cancelEdit() {
-    isEditing = false;
+    viewMode = 'view';
     editedCharacter = null;
     saveError = null;
   }
@@ -126,12 +132,24 @@
       editedCharacter.updatedAt = new Date().toISOString();
       await characterStore.saveCharacter(editedCharacter);
       character = editedCharacter;
-      isEditing = false;
+      viewMode = 'view';
       editedCharacter = null;
       saveError = null;
     } catch (e) {
       saveError = e instanceof Error ? e.message : 'Failed to save';
     }
+  }
+
+  function startPlay() {
+    viewMode = 'play';
+  }
+
+  function exitPlay() {
+    // Reload character from store to pick up any play-mode saves
+    const id = $page.params.id;
+    const found = characterStore.savedCharacters.find(c => c.id === id);
+    if (found) character = found;
+    viewMode = 'view';
   }
 
   function printCharacter() {
@@ -246,7 +264,19 @@
       <div class="text-red-400 mb-4">{error}</div>
       <a href="{base}/" class="btn btn-primary">Back to Home</a>
     </div>
-  {:else if character && !isEditing}
+  {:else if character && viewMode === 'play'}
+    <!-- Play Mode -->
+    <div class="mb-6">
+      <a href="{base}/" class="btn btn-ghost text-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Characters
+      </a>
+    </div>
+    <PlayMode {character} onExit={exitPlay} />
+
+  {:else if character && viewMode === 'view'}
     {@const background = getBackgroundById(character.backgroundId)}
     {@const charClass = getClassById(character.classId)}
     {@const partialClassNames = character.partialClasses?.map(pc =>
@@ -411,6 +441,13 @@
       <div class="card p-4 print:hidden">
         <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Actions</h4>
         <div class="flex flex-wrap justify-center gap-3">
+          <button onclick={startPlay} class="btn bg-green-600 hover:bg-green-500 text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Play
+          </button>
           <button onclick={startEdit} class="btn btn-primary">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
