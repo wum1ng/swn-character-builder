@@ -5,7 +5,7 @@ import { BACKGROUNDS, getBackgroundById } from '$data/backgrounds';
 import { CLASSES } from '$data/classes';
 import { COMBAT_FOCI, NON_COMBAT_FOCI, getFocusById } from '$data/foci';
 import { SKILLS, NON_COMBAT_SKILLS, COMBAT_SKILLS } from '$data/skills';
-import { EQUIPMENT_PACKAGES, getEquipmentById } from '$data/equipment';
+import { EQUIPMENT_PACKAGES, getEquipmentById, calculateAC } from '$data/equipment';
 
 // Random name generator
 const FIRST_NAMES = [
@@ -445,7 +445,10 @@ class CharacterStore {
       hitPointsMax: this.draft.hitPoints || 1,
       hitPointsCurrent: existingChar?.hitPointsCurrent ?? (this.draft.hitPoints || 1),
       attackBonus: this.calculateAttackBonus(),
-      armorClass: 10 + dexMod,
+      armorClass: (() => {
+        const inv = existingChar?.inventory || buildInventoryFromEquipment(this.draft.equipment);
+        return calculateAC(inv, dexMod);
+      })(),
 
       equipment: this.draft.equipment,
       inventory: existingChar?.inventory || buildInventoryFromEquipment(this.draft.equipment),

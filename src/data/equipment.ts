@@ -707,3 +707,24 @@ export function calculatePackageValue(packageId: string): number {
 
 // Starting credits for character creation
 export const STARTING_CREDITS = 2000;
+
+// Calculate AC from readied inventory items + Dex modifier
+// SWN: AC = best armor AC (or 10 unarmored) + Dex mod + shield bonus
+export function calculateAC(inventory: { itemId: string; location: string; quantity: number }[], dexMod: number): number {
+  let bestArmorAC = 10; // base unarmored
+  let shieldBonus = 0;
+
+  for (const inv of inventory) {
+    if (inv.location !== 'readied') continue;
+    const item = getEquipmentById(inv.itemId);
+    if (!item || item.category !== 'armor') continue;
+
+    if (item.id === 'shield') {
+      shieldBonus = item.armorClass || 1;
+    } else if (item.armorClass && item.armorClass > bestArmorAC) {
+      bestArmorAC = item.armorClass;
+    }
+  }
+
+  return bestArmorAC + dexMod + shieldBonus;
+}
