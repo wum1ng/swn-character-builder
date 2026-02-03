@@ -24,8 +24,16 @@
   let viewMode = $state<ViewMode>('view');
   let editedCharacter = $state<Character | null>(null);
   let saveError = $state<string | null>(null);
+  let expandedFocus = $state<string | null>(null);
+  let expandedSkill = $state<string | null>(null);
 
   const isEditing = $derived(viewMode === 'edit');
+
+  const isPsychic = $derived(
+    character?.classId === 'psychic' ||
+    character?.partialClasses?.includes('partial-psychic') ||
+    false
+  );
 
   const attributes: AttributeKey[] = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
 
@@ -157,6 +165,14 @@
   async function updateCurrentHP(newHP: number) {
     if (!character) return;
     character.hitPointsCurrent = Math.max(0, Math.min(character.hitPointsMax, newHP));
+    character.updatedAt = new Date().toISOString();
+    await characterStore.saveCharacter(character);
+  }
+
+  async function updateCurrentEffort(newEffort: number) {
+    if (!character) return;
+    const max = character.effortMax ?? 0;
+    character.effortCurrent = Math.max(0, Math.min(max, newEffort));
     character.updatedAt = new Date().toISOString();
     await characterStore.saveCharacter(character);
   }
@@ -297,7 +313,7 @@
       </div>
 
       <!-- Core Stats -->
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div class="card p-4 text-center">
           <div class="text-3xl font-display text-red-400 flex items-center justify-center gap-1">
             <input
@@ -312,6 +328,25 @@
             <span>{character.hitPointsMax}</span>
           </div>
           <div class="text-xs text-slate-400 mt-1">Hit Points</div>
+        </div>
+        <div class="card p-4 text-center {isPsychic ? '' : 'opacity-40'}">
+          <div class="text-3xl font-display text-amber-400 flex items-center justify-center gap-1">
+            {#if isPsychic}
+              <input
+                type="number"
+                min="0"
+                max={character.effortMax ?? 0}
+                value={character.effortCurrent ?? 0}
+                onchange={(e) => updateCurrentEffort(parseInt((e.target as HTMLInputElement).value) || 0)}
+                class="w-12 bg-transparent text-center text-3xl font-display text-amber-400 border-b border-amber-400/30 focus:border-amber-400 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            {:else}
+              <span>0</span>
+            {/if}
+            <span class="text-slate-500">/</span>
+            <span>{character.effortMax ?? 0}</span>
+          </div>
+          <div class="text-xs text-slate-400 mt-1">Effort</div>
         </div>
         <div class="card p-4 text-center">
           <div class="text-3xl font-display text-cyan-400">
@@ -373,11 +408,31 @@
           <div class="flex flex-wrap gap-2">
             {#each character.skills as skill}
               {@const skillData = getSkillById(skill.skillId)}
-              <span class="px-3 py-1 rounded-full text-sm bg-slate-700 text-slate-200">
+              {@const isExpSkill = expandedSkill === skill.skillId}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <span
+                onclick={() => expandedSkill = isExpSkill ? null : skill.skillId}
+                class="px-3 py-1 rounded-full text-sm bg-slate-700 text-slate-200 cursor-pointer hover:bg-slate-600 transition-colors"
+              >
                 {skillData?.name || skill.skillId}-{skill.rank}
               </span>
             {/each}
           </div>
+          {#if expandedSkill}
+            {@const skillInfo = getSkillById(expandedSkill)}
+            {#if skillInfo}
+              <div class="mt-4 p-3 rounded-lg bg-slate-800/70 border border-slate-700 text-sm">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-display text-white tracking-wider">{skillInfo.name}</span>
+                  <span class="text-xs text-slate-500">
+                    {Array.isArray(skillInfo.attribute) ? skillInfo.attribute.map(a => a.slice(0,3).toUpperCase()).join('/') : skillInfo.attribute.slice(0,3).toUpperCase()}
+                  </span>
+                </div>
+                <p class="text-slate-400">{skillInfo.description}</p>
+              </div>
+            {/if}
+          {/if}
         </div>
       {/if}
 
@@ -388,11 +443,58 @@
           <div class="space-y-2">
             {#each character.foci as focus}
               {@const focusData = getFocusById(focus.focusId)}
-              <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-purple-300">
-                  Lvl {focus.level}
-                </span>
-                <span class="text-white">{focusData?.name || focus.focusId}</span>
+              {@const isExpFocus = expandedFocus === focus.focusId}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                onclick={() => expandedFocus = isExpFocus ? null : focus.focusId}
+                class="cursor-pointer hover:bg-slate-800/50 rounded-lg p-2 -mx-2 transition-colors"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-purple-300">
+                    Lvl {focus.level}
+                  </span>
+                  <span class="text-white">{focusData?.name || focus.focusId}</span>
+                  <span class="text-xs text-slate-600 ml-auto">{focusData?.type}</span>
+                </div>
+                {#if isExpFocus && focusData}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div class="mt-3 pl-2 space-y-3 text-sm" onclick={(e) => e.stopPropagation()}>
+                    <p class="text-slate-400 italic">{focusData.description}</p>
+                    <div class="p-2 rounded bg-slate-800/70 border border-slate-700">
+                      <div class="text-purple-300 text-xs font-display tracking-wider mb-1">Level 1</div>
+                      <p class="text-slate-300 mb-2">{focusData.level1.description}</p>
+                      <ul class="space-y-1">
+                        {#each focusData.level1.abilities as ability}
+                          <li class="text-slate-400 text-xs flex gap-1.5">
+                            <span class="text-purple-400 shrink-0">-</span>
+                            {ability}
+                          </li>
+                        {/each}
+                      </ul>
+                    </div>
+                    {#if focus.level >= 2}
+                      <div class="p-2 rounded bg-slate-800/70 border border-purple-500/20">
+                        <div class="text-purple-300 text-xs font-display tracking-wider mb-1">Level 2</div>
+                        <p class="text-slate-300 mb-2">{focusData.level2.description}</p>
+                        <ul class="space-y-1">
+                          {#each focusData.level2.abilities as ability}
+                            <li class="text-slate-400 text-xs flex gap-1.5">
+                              <span class="text-purple-400 shrink-0">-</span>
+                              {ability}
+                            </li>
+                          {/each}
+                        </ul>
+                      </div>
+                    {:else}
+                      <div class="p-2 rounded bg-slate-800/30 border border-slate-700/50 opacity-50">
+                        <div class="text-slate-500 text-xs font-display tracking-wider mb-1">Level 2 (not taken)</div>
+                        <p class="text-slate-500">{focusData.level2.description}</p>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
