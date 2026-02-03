@@ -217,8 +217,15 @@ class CharacterStore {
                this.draft.attributes.wisdom !== undefined &&
                this.draft.attributes.charisma !== undefined;
       
-      case 'background':
-        return !!this.draft.backgroundId;
+      case 'background': {
+        if (!this.draft.backgroundId) return false;
+        const bg = getBackgroundById(this.draft.backgroundId);
+        // If the background's free skill requires a choice, ensure it's been made
+        if (bg && bg.freeSkill.startsWith('any-')) {
+          return !!this.draft.freeSkillChoice;
+        }
+        return true;
+      }
 
       case 'backgroundSkills':
         // Check that background skills step is complete (pickedSkills contains 'done')
