@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Character, InventoryItem, ItemLocation } from '$types/character';
   import { getEquipmentById, ALL_EQUIPMENT, type EquipmentItem } from '$data/equipment';
-  import { getAttributeModifier } from '$data/attributes';
+  import { getAttributeModifier, formatModifier } from '$data/attributes';
+  import { getSkillById } from '$data/skills';
 
   interface Props {
     character: Character;
@@ -9,6 +10,36 @@
   }
 
   let { character, onUpdate }: Props = $props();
+
+  let expandedItem = $state<string | null>(null);
+
+  function getWeaponSkillId(item: EquipmentItem): string | null {
+    if (item.category !== 'weapon') return null;
+    if (item.subCategory === 'melee') return 'stab';
+    if (item.subCategory === 'ranged') return 'shoot';
+    // Fallback: use attribute to guess
+    if (item.attribute === 'strength') return 'stab';
+    if (item.attribute === 'dexterity') return 'shoot';
+    return null;
+  }
+
+  function getSkillRank(skillId: string): number {
+    const skill = character.skills.find(s => s.skillId === skillId);
+    return skill ? skill.rank : -2; // SWN: untrained combat = -2
+  }
+
+  function getWeaponAttackTotal(item: EquipmentItem): number {
+    const skillId = getWeaponSkillId(item);
+    if (!skillId) return character.attackBonus;
+    const skillRank = getSkillRank(skillId);
+    let attrMod = 0;
+    if (item.attribute === 'strength') {
+      attrMod = getAttributeModifier(character.attributes.strength || 10);
+    } else if (item.attribute === 'dexterity') {
+      attrMod = getAttributeModifier(character.attributes.dexterity || 10);
+    }
+    return character.attackBonus + skillRank + attrMod;
+  }
 
   let inventory = $state<InventoryItem[]>(JSON.parse(JSON.stringify(character.inventory || [])));
   let credits = $state(character.credits);
@@ -381,40 +412,82 @@
     {:else}
       <div class="space-y-1">
         {#each getItemsByLocation('readied') as item}
-          <div class="flex items-center justify-between p-2 rounded bg-slate-800/50 group">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="px-1.5 py-0.5 rounded text-[10px] uppercase {getCategoryBadge(item.data.category)}">
-                {item.data.category.charAt(0)}
-              </span>
-              <span class="text-sm text-slate-200 truncate">{item.data.name}</span>
-              {#if item.quantity > 1}
-                <span class="text-xs text-slate-500">x{item.quantity}</span>
-              {/if}
-              <span class="text-xs text-slate-600">Enc {item.data.encumbrance * item.quantity}</span>
-              {#if item.data.damage}
-                <span class="text-xs text-red-400/70">{item.data.damage}</span>
-              {/if}
-              {#if item.data.armorClass}
-                <span class="text-xs text-blue-400/70">AC {item.data.armorClass}</span>
-              {/if}
+          {@const weaponSkillId = getWeaponSkillId(item.data)}
+          {@const weaponSkillData = weaponSkillId ? getSkillById(weaponSkillId) : null}
+          {@const attackTotal = item.data.category === 'weapon' ? getWeaponAttackTotal(item.data) : null}
+          {@const isExpanded = expandedItem === `readied-${item.itemId}`}
+          <div>
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              onclick={() => expandedItem = isExpanded ? null : `readied-${item.itemId}`}
+              class="flex items-center justify-between p-2 rounded bg-slate-800/50 group cursor-pointer hover:bg-slate-700/50 transition-colors"
+            >
+              <div class="flex items-center gap-2 min-w-0 flex-wrap">
+                <span class="px-1.5 py-0.5 rounded text-[10px] uppercase {getCategoryBadge(item.data.category)}">
+                  {item.data.category.charAt(0)}
+                </span>
+                <span class="text-sm text-slate-200 truncate">{item.data.name}</span>
+                {#if item.quantity > 1}
+                  <span class="text-xs text-slate-500">x{item.quantity}</span>
+                {/if}
+                <span class="text-xs text-slate-600">Enc {item.data.encumbrance * item.quantity}</span>
+                {#if item.data.damage}
+                  <span class="text-xs text-red-400/70">{item.data.damage}</span>
+                {/if}
+                {#if attackTotal !== null}
+                  <span class="text-xs text-cyan-400/80" title="Attack: AB {character.attackBonus} + {weaponSkillData?.name ?? '?'} + {item.data.attribute?.slice(0,3).toUpperCase() ?? '?'} mod">
+                    {weaponSkillData?.name}/{formatModifier(attackTotal)} hit
+                  </span>
+                {/if}
+                {#if item.data.armorClass}
+                  <span class="text-xs text-blue-400/70">AC {item.data.armorClass}</span>
+                {/if}
+              </div>
+              <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                <button
+                  onclick={(e) => { e.stopPropagation(); moveItem(item.itemId, 'readied', 'stowed'); }}
+                  class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  title="Move to Stowed"
+                >Stow</button>
+                <button
+                  onclick={(e) => { e.stopPropagation(); moveItem(item.itemId, 'readied', 'stored'); }}
+                  class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  title="Move to Stored"
+                >Store</button>
+                <button
+                  onclick={(e) => { e.stopPropagation(); removeItem(item.itemId, 'readied'); }}
+                  class="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 hover:bg-red-500/40 text-red-400"
+                  title="Remove"
+                >X</button>
+              </div>
             </div>
-            <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-              <button
-                onclick={() => moveItem(item.itemId, 'readied', 'stowed')}
-                class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                title="Move to Stowed"
-              >Stow</button>
-              <button
-                onclick={() => moveItem(item.itemId, 'readied', 'stored')}
-                class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                title="Move to Stored"
-              >Store</button>
-              <button
-                onclick={() => removeItem(item.itemId, 'readied')}
-                class="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 hover:bg-red-500/40 text-red-400"
-                title="Remove"
-              >X</button>
-            </div>
+            {#if isExpanded && item.data.description}
+              <div class="mx-2 mt-1 mb-2 p-2 rounded bg-slate-800/70 border border-slate-700 text-xs text-slate-400 space-y-1">
+                <p>{item.data.description}</p>
+                {#if item.data.damage}
+                  <div class="flex flex-wrap gap-x-4 gap-y-1 text-slate-500">
+                    <span>Damage: <span class="text-red-400">{item.data.damage}</span></span>
+                    {#if item.data.range}
+                      <span>Range: <span class="text-slate-300">{item.data.range}</span></span>
+                    {/if}
+                    {#if item.data.attribute}
+                      <span>Attribute: <span class="text-slate-300">{item.data.attribute.slice(0,3).toUpperCase()}</span></span>
+                    {/if}
+                    {#if item.data.magazineSize}
+                      <span>Magazine: <span class="text-slate-300">{item.data.magazineSize}</span></span>
+                    {/if}
+                    <span>TL: <span class="text-slate-300">{item.data.techLevel}</span></span>
+                  </div>
+                {/if}
+                {#if item.data.armorClass}
+                  <div class="text-slate-500">
+                    AC: <span class="text-blue-400">{item.data.armorClass}</span>
+                    | TL: <span class="text-slate-300">{item.data.techLevel}</span>
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
@@ -432,34 +505,62 @@
     {:else}
       <div class="space-y-1">
         {#each getItemsByLocation('stowed') as item}
-          <div class="flex items-center justify-between p-2 rounded bg-slate-800/50 group">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="px-1.5 py-0.5 rounded text-[10px] uppercase {getCategoryBadge(item.data.category)}">
-                {item.data.category.charAt(0)}
-              </span>
-              <span class="text-sm text-slate-200 truncate">{item.data.name}</span>
-              {#if item.quantity > 1}
-                <span class="text-xs text-slate-500">x{item.quantity}</span>
-              {/if}
-              <span class="text-xs text-slate-600">Enc {item.data.encumbrance * item.quantity}</span>
+          {@const isExpanded = expandedItem === `stowed-${item.itemId}`}
+          <div>
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              onclick={() => expandedItem = isExpanded ? null : `stowed-${item.itemId}`}
+              class="flex items-center justify-between p-2 rounded bg-slate-800/50 group cursor-pointer hover:bg-slate-700/50 transition-colors"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="px-1.5 py-0.5 rounded text-[10px] uppercase {getCategoryBadge(item.data.category)}">
+                  {item.data.category.charAt(0)}
+                </span>
+                <span class="text-sm text-slate-200 truncate">{item.data.name}</span>
+                {#if item.quantity > 1}
+                  <span class="text-xs text-slate-500">x{item.quantity}</span>
+                {/if}
+                <span class="text-xs text-slate-600">Enc {item.data.encumbrance * item.quantity}</span>
+              </div>
+              <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                <button
+                  onclick={(e) => { e.stopPropagation(); moveItem(item.itemId, 'stowed', 'readied'); }}
+                  class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  title="Move to Readied"
+                >Ready</button>
+                <button
+                  onclick={(e) => { e.stopPropagation(); moveItem(item.itemId, 'stowed', 'stored'); }}
+                  class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  title="Move to Stored"
+                >Store</button>
+                <button
+                  onclick={(e) => { e.stopPropagation(); removeItem(item.itemId, 'stowed'); }}
+                  class="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 hover:bg-red-500/40 text-red-400"
+                  title="Remove"
+                >X</button>
+              </div>
             </div>
-            <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-              <button
-                onclick={() => moveItem(item.itemId, 'stowed', 'readied')}
-                class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                title="Move to Readied"
-              >Ready</button>
-              <button
-                onclick={() => moveItem(item.itemId, 'stowed', 'stored')}
-                class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                title="Move to Stored"
-              >Store</button>
-              <button
-                onclick={() => removeItem(item.itemId, 'stowed')}
-                class="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 hover:bg-red-500/40 text-red-400"
-                title="Remove"
-              >X</button>
-            </div>
+            {#if isExpanded && item.data.description}
+              <div class="mx-2 mt-1 mb-2 p-2 rounded bg-slate-800/70 border border-slate-700 text-xs text-slate-400 space-y-1">
+                <p>{item.data.description}</p>
+                {#if item.data.damage}
+                  <div class="flex flex-wrap gap-x-4 gap-y-1 text-slate-500">
+                    <span>Damage: <span class="text-red-400">{item.data.damage}</span></span>
+                    {#if item.data.range}<span>Range: <span class="text-slate-300">{item.data.range}</span></span>{/if}
+                    {#if item.data.attribute}<span>Attribute: <span class="text-slate-300">{item.data.attribute.slice(0,3).toUpperCase()}</span></span>{/if}
+                    {#if item.data.magazineSize}<span>Magazine: <span class="text-slate-300">{item.data.magazineSize}</span></span>{/if}
+                    <span>TL: <span class="text-slate-300">{item.data.techLevel}</span></span>
+                  </div>
+                {/if}
+                {#if item.data.armorClass}
+                  <div class="text-slate-500">
+                    AC: <span class="text-blue-400">{item.data.armorClass}</span>
+                    | TL: <span class="text-slate-300">{item.data.techLevel}</span>
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
@@ -477,33 +578,61 @@
     {:else}
       <div class="space-y-1">
         {#each getItemsByLocation('stored') as item}
-          <div class="flex items-center justify-between p-2 rounded bg-slate-800/50 group">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="px-1.5 py-0.5 rounded text-[10px] uppercase {getCategoryBadge(item.data.category)}">
-                {item.data.category.charAt(0)}
-              </span>
-              <span class="text-sm text-slate-200 truncate">{item.data.name}</span>
-              {#if item.quantity > 1}
-                <span class="text-xs text-slate-500">x{item.quantity}</span>
-              {/if}
+          {@const isExpanded = expandedItem === `stored-${item.itemId}`}
+          <div>
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              onclick={() => expandedItem = isExpanded ? null : `stored-${item.itemId}`}
+              class="flex items-center justify-between p-2 rounded bg-slate-800/50 group cursor-pointer hover:bg-slate-700/50 transition-colors"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="px-1.5 py-0.5 rounded text-[10px] uppercase {getCategoryBadge(item.data.category)}">
+                  {item.data.category.charAt(0)}
+                </span>
+                <span class="text-sm text-slate-200 truncate">{item.data.name}</span>
+                {#if item.quantity > 1}
+                  <span class="text-xs text-slate-500">x{item.quantity}</span>
+                {/if}
+              </div>
+              <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                <button
+                  onclick={(e) => { e.stopPropagation(); moveItem(item.itemId, 'stored', 'readied'); }}
+                  class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  title="Move to Readied"
+                >Ready</button>
+                <button
+                  onclick={(e) => { e.stopPropagation(); moveItem(item.itemId, 'stored', 'stowed'); }}
+                  class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  title="Move to Stowed"
+                >Stow</button>
+                <button
+                  onclick={(e) => { e.stopPropagation(); removeItem(item.itemId, 'stored'); }}
+                  class="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 hover:bg-red-500/40 text-red-400"
+                  title="Remove"
+                >X</button>
+              </div>
             </div>
-            <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-              <button
-                onclick={() => moveItem(item.itemId, 'stored', 'readied')}
-                class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                title="Move to Readied"
-              >Ready</button>
-              <button
-                onclick={() => moveItem(item.itemId, 'stored', 'stowed')}
-                class="px-2 py-0.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                title="Move to Stowed"
-              >Stow</button>
-              <button
-                onclick={() => removeItem(item.itemId, 'stored')}
-                class="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 hover:bg-red-500/40 text-red-400"
-                title="Remove"
-              >X</button>
-            </div>
+            {#if isExpanded && item.data.description}
+              <div class="mx-2 mt-1 mb-2 p-2 rounded bg-slate-800/70 border border-slate-700 text-xs text-slate-400 space-y-1">
+                <p>{item.data.description}</p>
+                {#if item.data.damage}
+                  <div class="flex flex-wrap gap-x-4 gap-y-1 text-slate-500">
+                    <span>Damage: <span class="text-red-400">{item.data.damage}</span></span>
+                    {#if item.data.range}<span>Range: <span class="text-slate-300">{item.data.range}</span></span>{/if}
+                    {#if item.data.attribute}<span>Attribute: <span class="text-slate-300">{item.data.attribute.slice(0,3).toUpperCase()}</span></span>{/if}
+                    {#if item.data.magazineSize}<span>Magazine: <span class="text-slate-300">{item.data.magazineSize}</span></span>{/if}
+                    <span>TL: <span class="text-slate-300">{item.data.techLevel}</span></span>
+                  </div>
+                {/if}
+                {#if item.data.armorClass}
+                  <div class="text-slate-500">
+                    AC: <span class="text-blue-400">{item.data.armorClass}</span>
+                    | TL: <span class="text-slate-300">{item.data.techLevel}</span>
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
