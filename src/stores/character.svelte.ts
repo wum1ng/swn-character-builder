@@ -316,7 +316,8 @@ class CharacterStore {
   // Background actions
   setBackground(backgroundId: string) {
     this.draft.backgroundId = backgroundId;
-    // Reset background-related skills
+    // Reset background-related skills and clear any skills from previous background
+    this.draft.skills = [];
     this.draft.growthRolls = [];
     this.draft.learningRolls = [];
     this.draft.pickedSkills = [];
