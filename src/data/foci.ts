@@ -1,4 +1,4 @@
-import type { Focus } from '$types/character';
+import type { Focus, AlienFeature } from '$types/character';
 
 export const FOCI: Focus[] = [
   {
@@ -358,10 +358,123 @@ export const FOCI: Focus[] = [
   }
 ];
 
+// Alien Features - GM picks 2 (or 3 if some are minor) for a custom alien race
+export const ALIEN_FEATURES: AlienFeature[] = [
+  {
+    id: 'aptitude-for-violence',
+    name: 'Aptitude for Violence',
+    description: 'All members of this species are good at hurting things. They gain a +1 bonus to their normal attack bonus. A 1st level Expert would have +1 instead of +0, and a 1st level Warrior would begin with +2.',
+    isMajor: true
+  },
+  {
+    id: 'environmental-native',
+    name: 'Environmental Native',
+    description: 'The alien is able to survive in a relatively common hostile environment, such as underwater, in hard vacuum, amid lethal radiation, or similar. If the alien requires this environment to survive, it\'s no net benefit at all.',
+    isMajor: false
+  },
+  {
+    id: 'innate-ability',
+    name: 'Innate Ability',
+    description: 'All members of this species have one or more natural abilities beyond those possessed by humans. Perfect vision in the dark, tracking by scent, wireless tech interfacing, a lack of need for food and water, or some other talent. Equivalent to the natural use of 2-3 equipment items, or a single psionic technique plus one point of Effort.',
+    isMajor: true
+  },
+  {
+    id: 'natural-defenses',
+    name: 'Natural Defenses',
+    description: 'The creature has a hard shell or sharp talons. Base Armor Class of 15 plus half character level, rounded up. Body weaponry such as claws or fangs is equivalent to a medium advanced weapon (1d8+1, Shock 2/AC 13). Weaponry alone is a very minor advantage.',
+    isMajor: true
+  },
+  {
+    id: 'origin-skill',
+    name: 'Origin Skill',
+    description: 'All members of the species are particularly good at something. They might all be capable warriors, have unique technical aptitude, be persuasive speakers, or otherwise have a shared knack. Receive an appropriate skill as a bonus. Warrior-type races may pick from Punch, Shoot, or Stab.',
+    isMajor: true
+  },
+  {
+    id: 'psychic-aptitude',
+    name: 'Psychic Aptitude',
+    description: 'These aliens are all psychically gifted. The PC must either be a Psychic or take the Partial Psychic class option from the Adventurer class. Their maximum Effort score is increased by one point.',
+    isMajor: true
+  },
+  {
+    id: 'shapeshifting',
+    name: 'Shapeshifting',
+    description: 'The alien is either an amoeboid blob that can manipulate objects with extruded pseudopods and flow through small spaces, or it can actually mimic other species or objects. Simple blob form is a minor perk; true mimicry of other species is equivalent to biopsionic shapeshifting.',
+    isMajor: true
+  },
+  {
+    id: 'strong-attribute',
+    name: 'Strong Attribute',
+    description: 'All members of the species excel in one area by human standards. Pick an attribute appropriate to the alien; that attribute gains a +1 bonus to its modifier, up to a maximum of +3.',
+    isMajor: true
+  },
+  {
+    id: 'tough',
+    name: 'Tough',
+    description: 'The alien is big, hardy, or made of unusually durable biological components. Whenever they roll hit dice to determine maximum hit points, the first die always counts as the maximum value. Further hit dice that roll a 1 are rerolled.',
+    isMajor: true
+  },
+  {
+    id: 'unusual-movement',
+    name: 'Unusual Movement Mode',
+    description: 'The alien can fly under normal gravity conditions, make short-range teleportation hops, or climb sheer walls as if flat. They can use their Move action to travel in unusual ways.',
+    isMajor: true
+  },
+  {
+    id: 'useful-immunity',
+    name: 'Useful Immunity',
+    description: 'The alien is impervious to some relatively common threat. A significant immunity (bullets, lasers, edged melee weapons) is a major benefit. Immunity to minor threats (toxins, diseases, radiation, falling damage) qualifies as a minor perk.',
+    isMajor: true
+  }
+];
+
+// Origin Foci - require GM unlock
+export const ORIGIN_FOCI: Focus[] = [
+  {
+    id: 'robot-pc',
+    name: 'Robot Player Character',
+    type: 'origin',
+    originType: 'robot',
+    description: 'You are a VI (Virtual Intelligence) robot, an artificial being with true self-awareness instantiated in a mechanical body. You were built for a specific function but have developed beyond your original programming. VIs have the same attributes, hit points, abilities, and classes as humans, but cannot be Psychics nor take the Partial Psychic class option.',
+    level1: {
+      description: 'Gain a bonus skill related to your intended function. You have all the traits of a VI robot: you need neither sleep, eat, nor drink, requiring one Type B power cell per week of operation away from available power. You are immune to vacuum, poison, and disease. You cannot be affected by biopsionic healing but can be healed with spare parts and Fix-0 skill (each unit heals HP equal to your character level, 15 minutes to apply). You cannot use cyberware. Equipment can be grafted into your chassis at double cost (max encumbrance equal to half your Constitution).',
+      abilities: [
+        'Immune to vacuum, poison, and disease',
+        'No need to eat, sleep, or drink (1 Type B cell/week)',
+        'Healed with spare parts + Fix skill, not biopsionics',
+        'Can graft equipment into chassis (double cost, max Enc = half CON)',
+        'Cannot use cyberware or be a Psychic'
+      ]
+    }
+  },
+  {
+    id: 'alien-origin',
+    name: 'Alien Origin',
+    type: 'origin',
+    originType: 'alien',
+    description: 'You are a member of an alien species with abilities beyond the human baseline. Your GM has approved your alien race concept. Choose two features from the alien benefits list that define your species\' natural traits. If some features are relatively minor perks, your GM may allow a third.',
+    level1: {
+      description: 'Choose two alien features that represent your species\' unique traits. These features define your alien nature and grant you abilities beyond the human norm.',
+      abilities: [
+        'Select two alien features from the list below',
+        'Features define your species\' natural abilities'
+      ]
+    },
+    alienFeatures: ALIEN_FEATURES
+  }
+];
+
 export const COMBAT_FOCI = FOCI.filter(f => f.type === 'combat');
 export const NON_COMBAT_FOCI = FOCI.filter(f => f.type === 'non-combat');
 export const PSYCHIC_FOCI = FOCI.filter(f => f.type === 'psychic');
 
+// All foci including origins (for lookup)
+export const ALL_FOCI = [...FOCI, ...ORIGIN_FOCI];
+
 export function getFocusById(id: string): Focus | undefined {
-  return FOCI.find(f => f.id === id);
+  return ALL_FOCI.find(f => f.id === id);
+}
+
+export function getAlienFeatureById(id: string): AlienFeature | undefined {
+  return ALIEN_FEATURES.find(f => f.id === id);
 }
