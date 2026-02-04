@@ -18,7 +18,7 @@
     if (item.subCategory === 'melee') return 'stab';
     if (item.subCategory === 'ranged') return 'shoot';
     // Fallback: use attribute to guess
-    if (item.attribute === 'strength') return 'stab';
+    if (item.attribute === 'strength' || item.attribute === 'strength/dexterity') return 'stab';
     if (item.attribute === 'dexterity') return 'shoot';
     return null;
   }
@@ -37,6 +37,10 @@
       attrMod = getAttributeModifier(character.attributes.strength || 10);
     } else if (item.attribute === 'dexterity') {
       attrMod = getAttributeModifier(character.attributes.dexterity || 10);
+    } else if (item.attribute === 'strength/dexterity') {
+      const strMod = getAttributeModifier(character.attributes.strength || 10);
+      const dexMod = getAttributeModifier(character.attributes.dexterity || 10);
+      attrMod = Math.max(strMod, dexMod);
     }
     return character.attackBonus + skillRank + attrMod;
   }
