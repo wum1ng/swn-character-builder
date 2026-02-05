@@ -1,10 +1,10 @@
 import { get, set, del, keys } from 'idb-keyval';
-import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName, InventoryItem } from '$types/character';
+import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName, InventoryItem, LevelUpRecord } from '$types/character';
 import { rollAllAttributes, createEmptyAttributes, getAttributeModifier, STANDARD_ARRAY } from '$data/attributes';
 import { BACKGROUNDS, getBackgroundById } from '$data/backgrounds';
-import { CLASSES } from '$data/classes';
+import { CLASSES, getAttackBonus } from '$data/classes';
 import { COMBAT_FOCI, NON_COMBAT_FOCI, getFocusById } from '$data/foci';
-import { SKILLS, NON_COMBAT_SKILLS, COMBAT_SKILLS } from '$data/skills';
+import { SKILLS, NON_COMBAT_SKILLS, COMBAT_SKILLS, PSYCHIC_SKILLS } from '$data/skills';
 import { EQUIPMENT_PACKAGES, getEquipmentById, calculateAC } from '$data/equipment';
 
 // Random name generator
@@ -124,7 +124,7 @@ function buildInventoryFromEquipment(equipmentIds: string[]): InventoryItem[] {
   return inventory;
 }
 
-// Migrate old character data that lacks inventory field
+// Migrate old character data that lacks inventory or levelUpHistory fields
 function migrateCharacter(char: Character): Character {
   if (!char.inventory || char.inventory.length === 0) {
     if (char.equipment && char.equipment.length > 0) {
@@ -132,6 +132,9 @@ function migrateCharacter(char: Character): Character {
     } else {
       char.inventory = [];
     }
+  }
+  if (!char.levelUpHistory) {
+    char.levelUpHistory = [];
   }
   return char;
 }
@@ -442,6 +445,10 @@ class CharacterStore {
       ? this.savedCharacters.find(c => c.id === this.editingCharacterId)
       : null;
 
+    const level = existingChar?.level || 1;
+    const classId = this.draft.classId!;
+    const partialClasses = this.draft.partialClasses;
+
     return {
       id: this.editingCharacterId || crypto.randomUUID(),
       name: this.draft.name,
@@ -451,13 +458,13 @@ class CharacterStore {
       goals: this.draft.goals,
       notes: this.draft.notes,
 
-      level: existingChar?.level || 1,
+      level,
       experience: existingChar?.experience || 0,
       attributes: this.draft.attributes as Attributes,
 
       backgroundId: this.draft.backgroundId!,
-      classId: this.draft.classId!,
-      partialClasses: this.draft.partialClasses,
+      classId,
+      partialClasses,
 
       skills: this.draft.skills,
       foci: this.draft.selectedFoci,
@@ -472,7 +479,7 @@ class CharacterStore {
 
       hitPointsMax: this.draft.hitPoints || 1,
       hitPointsCurrent: existingChar?.hitPointsCurrent ?? (this.draft.hitPoints || 1),
-      attackBonus: this.calculateAttackBonus(),
+      attackBonus: getAttackBonus(classId, level, partialClasses as string[] | undefined),
       armorClass: (() => {
         const inv = existingChar?.inventory || buildInventoryFromEquipment(this.draft.equipment);
         return calculateAC(inv, dexMod);
@@ -483,10 +490,12 @@ class CharacterStore {
       credits: this.draft.credits,
 
       savingThrows: {
-        physical: 15 - 1 - Math.max(strMod, conMod),
-        evasion: 15 - 1 - Math.max(intMod, dexMod),
-        mental: 15 - 1 - Math.max(wisMod, chaMod)
+        physical: 15 - level - Math.max(strMod, conMod),
+        evasion: 15 - level - Math.max(intMod, dexMod),
+        mental: 15 - level - Math.max(wisMod, chaMod)
       },
+
+      levelUpHistory: existingChar?.levelUpHistory || [],
 
       createdAt: existingChar?.createdAt || now,
       updatedAt: now
@@ -521,9 +530,122 @@ class CharacterStore {
   }
 
   calculateAttackBonus(): number {
-    if (this.draft.classId === 'warrior') return 1;
-    if (this.draft.partialClasses?.includes('partial-warrior')) return 0;
-    return 0;
+    const classId = this.draft.classId;
+    if (!classId) return 0;
+    return getAttackBonus(classId, 1, this.draft.partialClasses as string[] | undefined);
+  }
+
+  // === Level-Up Helpers ===
+
+  /** Check if character has enough XP to level up */
+  canLevelUp(character: Character): boolean {
+    if (character.level >= 10) return false;
+    return character.experience >= character.level * 3;
+  }
+
+  /** Roll HP for a level-up */
+  rollLevelUpHP(character: Character): { roll: number; gained: number } {
+    const conMod = getAttributeModifier(character.attributes.constitution);
+    const roll = Math.floor(Math.random() * 6) + 1;
+    let hp = roll + conMod;
+
+    // Warrior gets 1d6+2
+    if (character.classId === 'warrior') {
+      hp += 2;
+    }
+
+    // Partial Warrior gets +1 per level (applied as flat bonus)
+    if (character.classId === 'adventurer' && character.partialClasses?.includes('partial-warrior')) {
+      hp += 1;
+    }
+
+    // Die Hard focus: +2 per level
+    if (character.foci.some(f => f.focusId === 'die-hard')) {
+      hp += 2;
+    }
+
+    // Minimum 1 HP gained per level
+    hp = Math.max(1, hp);
+
+    return { roll, gained: hp };
+  }
+
+  /** Recalculate all derived stats on a character (after level-up) */
+  recalculateDerivedStats(character: Character): void {
+    const strMod = getAttributeModifier(character.attributes.strength);
+    const dexMod = getAttributeModifier(character.attributes.dexterity);
+    const conMod = getAttributeModifier(character.attributes.constitution);
+    const intMod = getAttributeModifier(character.attributes.intelligence);
+    const wisMod = getAttributeModifier(character.attributes.wisdom);
+    const chaMod = getAttributeModifier(character.attributes.charisma);
+
+    // Attack bonus
+    character.attackBonus = getAttackBonus(
+      character.classId,
+      character.level,
+      character.partialClasses as string[] | undefined
+    );
+
+    // Saving throws: 15 - level - best of two attribute mods
+    character.savingThrows = {
+      physical: 15 - character.level - Math.max(strMod, conMod),
+      evasion: 15 - character.level - Math.max(intMod, dexMod),
+      mental: 15 - character.level - Math.max(wisMod, chaMod)
+    };
+
+    // Effort (psychics)
+    const isPsychic = character.classId === 'psychic' ||
+      character.partialClasses?.includes('partial-psychic');
+    if (isPsychic) {
+      const psychicSkillRanks = character.skills
+        .filter(s => PSYCHIC_SKILLS.includes(s.skillId))
+        .map(s => s.rank);
+      const highestPsychicSkill = Math.max(0, ...psychicSkillRanks);
+      let effort = 1 + highestPsychicSkill + Math.max(wisMod, conMod);
+      const psychicTraining = character.foci.find(f => f.focusId === 'psychic-training');
+      if (psychicTraining) {
+        effort += psychicTraining.level;
+      }
+      character.effortMax = Math.max(1, effort);
+    }
+
+    // AC with Ironhide
+    const hasIronhide = character.foci.some(f => f.focusId === 'ironhide');
+    if (hasIronhide) {
+      const ironhideAC = 15 + Math.ceil(character.level / 2);
+      const normalAC = calculateAC(character.inventory, dexMod);
+      character.armorClass = Math.max(ironhideAC + dexMod, normalAC);
+    }
+  }
+
+  /** Get how many skill points a class gets per level */
+  getSkillPointsPerLevel(character: Character): { normal: number; bonusNonCombat: number } {
+    const isExpert = character.classId === 'expert' ||
+      (character.classId === 'adventurer' && character.partialClasses?.includes('partial-expert'));
+    return {
+      normal: 3,
+      bonusNonCombat: isExpert ? 1 : 0
+    };
+  }
+
+  /** Check if character gets a focus pick at this level */
+  getsFocusAtLevel(level: number): boolean {
+    return level % 2 === 0; // even levels: 2, 4, 6, 8, 10
+  }
+
+  /** Get bonus focus type for class at even levels */
+  getBonusFocusType(character: Character): 'combat' | 'non-combat' | null {
+    if (character.classId === 'warrior') return 'combat';
+    if (character.classId === 'expert') return 'non-combat';
+    // Adventurer partial classes don't get bonus focus picks at even levels
+    // (that's a full class ability)
+    return null;
+  }
+
+  /** Get max skill rank for a given level */
+  getMaxSkillRank(level: number): number {
+    // In SWN, max skill level = character level, up to 4
+    return Math.min(level, 4);
   }
 
   // Persistence
