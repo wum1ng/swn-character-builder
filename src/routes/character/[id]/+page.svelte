@@ -6,7 +6,7 @@
   import { characterStore } from '$stores/character.svelte';
   import { getBackgroundById, BACKGROUNDS } from '$data/backgrounds';
   import { getClassById, PARTIAL_CLASSES, CLASSES } from '$data/classes';
-  import { getFocusById, FOCI } from '$data/foci';
+  import { getFocusById, FOCI, getAlienFeatureById } from '$data/foci';
   import { getSkillById, SKILLS } from '$data/skills';
   import { getEquipmentById, ALL_EQUIPMENT } from '$data/equipment';
   import { formatModifier, getAttributeModifier } from '$data/attributes';
@@ -474,23 +474,41 @@
                         {/each}
                       </ul>
                     </div>
-                    {#if focus.level >= 2}
-                      <div class="p-2 rounded bg-slate-800/70 border border-purple-500/20">
-                        <div class="text-purple-300 text-xs font-display tracking-wider mb-1">Level 2</div>
-                        <p class="text-slate-300 mb-2">{focusData.level2.description}</p>
-                        <ul class="space-y-1">
-                          {#each focusData.level2.abilities as ability}
-                            <li class="text-slate-400 text-xs flex gap-1.5">
-                              <span class="text-purple-400 shrink-0">-</span>
-                              {ability}
-                            </li>
+                    {#if focusData.level2}
+                      {#if focus.level >= 2}
+                        <div class="p-2 rounded bg-slate-800/70 border border-purple-500/20">
+                          <div class="text-purple-300 text-xs font-display tracking-wider mb-1">Level 2</div>
+                          <p class="text-slate-300 mb-2">{focusData.level2.description}</p>
+                          <ul class="space-y-1">
+                            {#each focusData.level2.abilities as ability}
+                              <li class="text-slate-400 text-xs flex gap-1.5">
+                                <span class="text-purple-400 shrink-0">-</span>
+                                {ability}
+                              </li>
+                            {/each}
+                          </ul>
+                        </div>
+                      {:else}
+                        <div class="p-2 rounded bg-slate-800/30 border border-slate-700/50 opacity-50">
+                          <div class="text-slate-500 text-xs font-display tracking-wider mb-1">Level 2 (not taken)</div>
+                          <p class="text-slate-500">{focusData.level2.description}</p>
+                        </div>
+                      {/if}
+                    {/if}
+                    {#if focus.focusId === 'alien-origin' && character.alienFeatures?.length}
+                      <div class="p-2 rounded bg-slate-800/70 border border-amber-500/20">
+                        <div class="text-amber-300 text-xs font-display tracking-wider mb-2">Alien Features</div>
+                        <div class="space-y-2">
+                          {#each character.alienFeatures as featureId}
+                            {@const feature = getAlienFeatureById(featureId)}
+                            {#if feature}
+                              <div>
+                                <span class="text-xs text-white font-display">{feature.name}</span>
+                                <p class="text-slate-400 text-xs mt-0.5">{feature.description}</p>
+                              </div>
+                            {/if}
                           {/each}
-                        </ul>
-                      </div>
-                    {:else}
-                      <div class="p-2 rounded bg-slate-800/30 border border-slate-700/50 opacity-50">
-                        <div class="text-slate-500 text-xs font-display tracking-wider mb-1">Level 2 (not taken)</div>
-                        <p class="text-slate-500">{focusData.level2.description}</p>
+                        </div>
                       </div>
                     {/if}
                   </div>

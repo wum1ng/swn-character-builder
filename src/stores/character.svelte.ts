@@ -147,6 +147,7 @@ function createInitialDraft(): CharacterDraft {
     learningRolls: [],
     pickedSkills: [],
     selectedFoci: [],
+    alienFeatures: [],
     skills: [],
     psychicDisciplines: [],
     psychicTechniques: [],
@@ -460,6 +461,7 @@ class CharacterStore {
 
       skills: this.draft.skills,
       foci: this.draft.selectedFoci,
+      alienFeatures: this.draft.alienFeatures.length > 0 ? this.draft.alienFeatures : undefined,
 
       psychicDisciplines: this.draft.psychicDisciplines,
       psychicTechniques: this.draft.psychicTechniques,

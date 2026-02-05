@@ -54,10 +54,13 @@ export interface CharacterClass {
 export interface Focus {
   id: string;
   name: string;
-  type: 'combat' | 'non-combat' | 'psychic';
+  type: 'combat' | 'non-combat' | 'psychic' | 'origin';
   description: string;
   level1: FocusLevel;
-  level2: FocusLevel;
+  level2?: FocusLevel;
+  // Origin focus fields
+  originType?: 'robot' | 'alien';
+  alienFeatures?: AlienFeature[];
 }
 
 export interface FocusLevel {
@@ -65,6 +68,13 @@ export interface FocusLevel {
   bonusSkill?: string;
   bonusSkillChoices?: string[];
   abilities: string[];
+}
+
+export interface AlienFeature {
+  id: string;
+  name: string;
+  description: string;
+  isMajor: boolean; // major benefits count as 1, minor as 0.5
 }
 
 export interface Skill {
@@ -161,7 +171,8 @@ export interface Character {
   // Skills and abilities
   skills: SkillRank[];
   foci: { focusId: string; level: 1 | 2 }[];
-  
+  alienFeatures?: string[]; // IDs of selected alien features
+
   // Psychic (if applicable)
   psychicDisciplines?: string[];
   psychicTechniques?: string[];
@@ -218,7 +229,8 @@ export interface CharacterDraft {
   partialClasses?: [PartialClass, PartialClass];
   
   selectedFoci: { focusId: string; level: 1 | 2 }[];
-  
+  alienFeatures: string[]; // IDs of selected alien features for Alien Origin focus
+
   skills: SkillRank[];
   hobbySkill?: string;
   
