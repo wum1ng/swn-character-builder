@@ -675,12 +675,11 @@
         Learn one new technique from a known discipline (at or below your skill level).
       </p>
 
-      {@const availableTechniques = getAvailableTechniques()}
-      {#if availableTechniques.length === 0}
+      {#if getAvailableTechniques().length === 0}
         <p class="text-sm text-slate-500 italic">No techniques available at your current skill levels.</p>
       {:else}
         <div class="space-y-1 max-h-[350px] overflow-y-auto">
-          {#each availableTechniques as tech}
+          {#each getAvailableTechniques() as tech}
             {@const isSelected = selectedTechnique === tech.id}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->

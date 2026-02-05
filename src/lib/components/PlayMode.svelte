@@ -25,6 +25,12 @@
   let credits = $state(character.credits);
   let notes = $state(character.notes || '');
   let hpDelta = $state('');
+  let experience = $state(character.experience);
+
+  // XP tracking
+  const xpNeeded = $derived(character.level * 3);
+  const xpProgress = $derived(Math.min(100, (experience / xpNeeded) * 100));
+  const canLevelUp = $derived(character.level < 10 && experience >= xpNeeded);
 
   // Item add UI
   let showAddItem = $state(false);
@@ -83,9 +89,15 @@
     character.inventory = JSON.parse(JSON.stringify(inventory));
     character.credits = credits;
     character.notes = notes;
+    character.experience = experience;
     character.armorClass = computedAC;
     character.updatedAt = new Date().toISOString();
     await characterStore.saveCharacter(character);
+  }
+
+  function adjustXP(delta: number) {
+    experience = Math.max(0, experience + delta);
+    save();
   }
 
   function applyHpDelta(mode: 'damage' | 'heal') {
@@ -181,6 +193,43 @@
     <button onclick={onExit} class="btn btn-ghost text-sm">
       Exit Play
     </button>
+  </div>
+
+  <!-- XP Progress -->
+  <div class="card p-3">
+    <div class="flex items-center justify-between mb-2">
+      <h4 class="font-display text-xs tracking-wider text-cyan-400">Experience</h4>
+      <span class="text-xs text-slate-400">
+        {experience} / {xpNeeded} XP
+        {#if character.level >= 10}
+          <span class="text-green-400">(Max)</span>
+        {/if}
+      </span>
+    </div>
+    <div class="h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
+      <div
+        class="h-full transition-all duration-300 {canLevelUp ? 'bg-green-400' : 'bg-cyan-400'}"
+        style="width: {xpProgress}%"
+      ></div>
+    </div>
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <button
+          onclick={() => adjustXP(-1)}
+          class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-display"
+        >-</button>
+        <span class="text-sm text-slate-400 w-12 text-center">{experience}</span>
+        <button
+          onclick={() => adjustXP(1)}
+          class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-display"
+        >+</button>
+      </div>
+      {#if canLevelUp}
+        <div class="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 font-display animate-pulse">
+          Level Up Available!
+        </div>
+      {/if}
+    </div>
   </div>
 
   <!-- Core Combat Stats -->

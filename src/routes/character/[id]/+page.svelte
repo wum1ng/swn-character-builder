@@ -11,10 +11,11 @@
   import { getEquipmentById, ALL_EQUIPMENT } from '$data/equipment';
   import { formatModifier, getAttributeModifier } from '$data/attributes';
   import InventoryManager from '$lib/components/InventoryManager.svelte';
+  import LevelUpWizard from '$lib/components/LevelUpWizard.svelte';
   import { calculateAC } from '$data/equipment';
   import type { Character, AttributeKey, ClassName, PartialClass, InventoryItem } from '$types/character';
 
-  type ViewMode = 'view' | 'edit';
+  type ViewMode = 'view' | 'edit' | 'levelup';
 
   let character = $state<Character | null>(null);
   let loading = $state(true);
@@ -28,6 +29,10 @@
   let expandedSkill = $state<string | null>(null);
 
   const isEditing = $derived(viewMode === 'edit');
+  const isLevelingUp = $derived(viewMode === 'levelup');
+  const canLevelUp = $derived(character ? characterStore.canLevelUp(character) : false);
+  const xpNeeded = $derived(character ? character.level * 3 : 0);
+  const xpProgress = $derived(character ? Math.min(100, (character.experience / xpNeeded) * 100) : 0);
 
   const isPsychic = $derived(
     character?.classId === 'psychic' ||
@@ -183,6 +188,27 @@
     goto(`${base}/`);
   }
 
+  function startLevelUp() {
+    if (!character || !canLevelUp) return;
+    viewMode = 'levelup';
+  }
+
+  function handleLevelUpComplete(updated: Character) {
+    character = updated;
+    viewMode = 'view';
+  }
+
+  function cancelLevelUp() {
+    viewMode = 'view';
+  }
+
+  async function updateExperience(delta: number) {
+    if (!character) return;
+    character.experience = Math.max(0, character.experience + delta);
+    character.updatedAt = new Date().toISOString();
+    await characterStore.saveCharacter(character);
+  }
+
   // Edit helpers
   function updateAttribute(attr: AttributeKey, value: string) {
     if (!editedCharacter) return;
@@ -310,6 +336,44 @@
         {#if background}
           <p class="text-sm text-purple-400 mt-1">{background.name} Background</p>
         {/if}
+
+        <!-- XP Progress -->
+        <div class="mt-4 max-w-xs mx-auto print:hidden">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="text-slate-500">Experience</span>
+            <span class="text-slate-400">
+              {character.experience} / {xpNeeded} XP
+              {#if character.level >= 10}
+                <span class="text-green-400 ml-1">(Max Level)</span>
+              {/if}
+            </span>
+          </div>
+          <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              class="h-full transition-all duration-300 {canLevelUp ? 'bg-green-400' : 'bg-cyan-400'}"
+              style="width: {xpProgress}%"
+            ></div>
+          </div>
+          <div class="flex items-center justify-center gap-2 mt-2">
+            <button
+              onclick={() => updateExperience(-1)}
+              class="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 font-display"
+            >-</button>
+            <span class="text-sm text-slate-400 w-16 text-center">{character.experience} XP</span>
+            <button
+              onclick={() => updateExperience(1)}
+              class="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 font-display"
+            >+</button>
+          </div>
+          {#if canLevelUp}
+            <button onclick={startLevelUp} class="btn btn-primary mt-3 w-full">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+              Level Up!
+            </button>
+          {/if}
+        </div>
       </div>
 
       <!-- Core Stats -->
@@ -625,7 +689,22 @@
         </div>
       </div>
     </div>
-    {:else if viewMode === 'edit' && editedCharacter}
+    {:else if viewMode === 'levelup' && character}
+    <!-- Level-Up Mode -->
+    <div class="mb-6">
+      <button onclick={cancelLevelUp} class="btn btn-ghost text-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Cancel
+      </button>
+    </div>
+    <LevelUpWizard
+      {character}
+      onComplete={handleLevelUpComplete}
+      onCancel={cancelLevelUp}
+    />
+  {:else if viewMode === 'edit' && editedCharacter}
     <!-- Edit Mode -->
     <div class="mb-6 flex items-center justify-between">
       <button onclick={cancelEdit} class="btn btn-ghost text-sm">
