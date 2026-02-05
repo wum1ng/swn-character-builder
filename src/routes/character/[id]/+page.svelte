@@ -6,7 +6,7 @@
   import { characterStore } from '$stores/character.svelte';
   import { getBackgroundById, BACKGROUNDS } from '$data/backgrounds';
   import { getClassById, PARTIAL_CLASSES, CLASSES } from '$data/classes';
-  import { getFocusById, FOCI, getAlienFeatureById } from '$data/foci';
+  import { getFocusById, FOCI, getAlienFeatureById, getRobotTypeById } from '$data/foci';
   import { getSkillById, SKILLS } from '$data/skills';
   import { getEquipmentById, ALL_EQUIPMENT } from '$data/equipment';
   import { formatModifier, getAttributeModifier } from '$data/attributes';
@@ -510,6 +510,32 @@
                           {/each}
                         </div>
                       </div>
+                    {/if}
+                    {#if focus.focusId === 'robot-pc' && character.robotType}
+                      {@const robotTypeData = getRobotTypeById(character.robotType)}
+                      {#if robotTypeData}
+                        <div class="p-2 rounded bg-slate-800/70 border border-amber-500/20">
+                          <div class="text-amber-300 text-xs font-display tracking-wider mb-2">
+                            Robot Sub-type: {robotTypeData.name}
+                          </div>
+                          <p class="text-slate-400 text-xs mb-2">{robotTypeData.description}</p>
+                          <ul class="space-y-1">
+                            {#each robotTypeData.abilities as ability}
+                              <li class="text-slate-400 text-xs flex gap-1.5">
+                                <span class="text-amber-400 shrink-0">-</span>
+                                {ability}
+                              </li>
+                            {/each}
+                          </ul>
+                          {#if character.robotAttributeBonus}
+                            <div class="mt-2 pt-2 border-t border-slate-700/50">
+                              <span class="text-xs text-green-400">
+                                Attribute Bonus: +1 {character.robotAttributeBonus.charAt(0).toUpperCase() + character.robotAttributeBonus.slice(1)} modifier
+                              </span>
+                            </div>
+                          {/if}
+                        </div>
+                      {/if}
                     {/if}
                   </div>
                 {/if}

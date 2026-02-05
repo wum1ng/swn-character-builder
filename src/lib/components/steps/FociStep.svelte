@@ -1,6 +1,6 @@
 <script lang="ts">
   import { characterStore } from '$stores/character.svelte';
-  import { FOCI, COMBAT_FOCI, NON_COMBAT_FOCI, PSYCHIC_FOCI, ORIGIN_FOCI, ALIEN_FEATURES, getFocusById, getAlienFeatureById } from '$data/foci';
+  import { FOCI, COMBAT_FOCI, NON_COMBAT_FOCI, PSYCHIC_FOCI, ORIGIN_FOCI, ALIEN_FEATURES, ROBOT_TYPES, getFocusById, getAlienFeatureById, getRobotTypeById } from '$data/foci';
   import { getSkillById, SKILLS } from '$data/skills';
   import type { Focus } from '$types/character';
 
@@ -64,6 +64,11 @@
       if (focus.id === 'alien-origin') {
         characterStore.draft.alienFeatures = [];
       }
+      // Clear robot type if deselecting robot PC
+      if (focus.id === 'robot-pc') {
+        characterStore.draft.robotType = undefined;
+        characterStore.draft.robotAttributeBonus = undefined;
+      }
     } else {
       // Origin foci are always level 1 only
       characterStore.addFocus(focus.id, 1);
@@ -104,6 +109,30 @@
 
   // Get non-combat, non-psychic skills for Robot PC bonus skill choice
   const robotBonusSkills = SKILLS.filter(s => !s.isPsychic);
+
+  // Attribute options for Worker Bot bonus
+  const ATTRIBUTE_OPTIONS: { id: string; label: string }[] = [
+    { id: 'strength', label: 'Strength' },
+    { id: 'dexterity', label: 'Dexterity' },
+    { id: 'constitution', label: 'Constitution' },
+    { id: 'intelligence', label: 'Intelligence' },
+    { id: 'wisdom', label: 'Wisdom' },
+    { id: 'charisma', label: 'Charisma' }
+  ];
+
+  function selectRobotType(typeId: string) {
+    characterStore.draft.robotType = typeId;
+    // Clear previous bonus skill choice when changing type
+    delete focusSkillChoices['robot-pc'];
+    // Clear attribute bonus
+    characterStore.draft.robotAttributeBonus = undefined;
+
+    // Vehicle Bot automatically gets Pilot
+    if (typeId === 'vehicle-bot') {
+      focusSkillChoices['robot-pc'] = 'pilot';
+      characterStore.addFreeSkill('pilot');
+    }
+  }
 </script>
 
 <div class="space-y-6">
@@ -238,27 +267,101 @@
                 </span>
               </div>
 
-              <!-- Robot PC: Bonus Skill Picker -->
+              <!-- Robot PC: Sub-type Selection -->
               {#if focus.id === 'robot-pc'}
-                <div class="mt-2">
-                  {#if focusSkillChoices[focus.id]}
-                    <span class="text-xs text-green-400">
-                      Function skill: {getSkillById(focusSkillChoices[focus.id])?.name || focusSkillChoices[focus.id]}
-                    </span>
-                  {:else}
-                    <p class="text-xs text-slate-400 mb-1">Choose bonus skill (your intended function):</p>
-                    <select
-                      class="w-full px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
-                      onchange={(e) => {
-                        const val = (e.target as HTMLSelectElement).value;
-                        if (val) selectFocusBonusSkill(focus.id, val);
-                      }}
-                    >
-                      <option value="">-- Select --</option>
-                      {#each robotBonusSkills as skill}
-                        <option value={skill.id}>{skill.name}</option>
-                      {/each}
-                    </select>
+                <div class="mt-3 pt-3 border-t border-slate-700">
+                  <p class="text-xs text-slate-400 mb-2">Choose your robot sub-type:</p>
+                  <div class="space-y-2">
+                    {#each ROBOT_TYPES as robotType}
+                      {@const isTypeSelected = characterStore.draft.robotType === robotType.id}
+                      <button
+                        onclick={() => selectRobotType(robotType.id)}
+                        class="w-full text-left p-2.5 rounded border transition-all
+                          {isTypeSelected
+                            ? 'border-amber-500/50 bg-amber-500/10'
+                            : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'}"
+                      >
+                        <div class="flex items-start gap-2">
+                          <div class="mt-0.5 w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center
+                            {isTypeSelected ? 'bg-amber-500 border-amber-500' : 'border-slate-500'}">
+                            {#if isTypeSelected}
+                              <div class="w-2 h-2 rounded-full bg-white"></div>
+                            {/if}
+                          </div>
+                          <div class="flex-1">
+                            <span class="text-xs font-display text-white">{robotType.name}</span>
+                            <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{robotType.description}</p>
+                            {#if isTypeSelected}
+                              <ul class="mt-1.5 space-y-0.5">
+                                {#each robotType.abilities as ability}
+                                  <li class="text-[11px] text-slate-300 flex items-start gap-1">
+                                    <span class="text-amber-400 mt-0.5">&#9670;</span>
+                                    {ability}
+                                  </li>
+                                {/each}
+                              </ul>
+                            {/if}
+                          </div>
+                        </div>
+                      </button>
+                    {/each}
+                  </div>
+
+                  <!-- Bonus skill / attribute selection based on sub-type -->
+                  {#if characterStore.draft.robotType}
+                    <div class="mt-3 pt-2 border-t border-slate-700/50">
+                      {#if characterStore.draft.robotType === 'vehicle-bot'}
+                        <span class="text-xs text-green-400">
+                          Bonus skill: Pilot (automatic)
+                        </span>
+                      {:else}
+                        <!-- Android or Worker Bot: choose bonus skill -->
+                        {#if focusSkillChoices[focus.id]}
+                          <span class="text-xs text-green-400">
+                            Function skill: {getSkillById(focusSkillChoices[focus.id])?.name || focusSkillChoices[focus.id]}
+                          </span>
+                        {:else}
+                          <p class="text-xs text-slate-400 mb-1">Choose bonus skill (your intended function):</p>
+                          <select
+                            class="w-full px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
+                            onchange={(e) => {
+                              const val = (e.target as HTMLSelectElement).value;
+                              if (val) selectFocusBonusSkill(focus.id, val);
+                            }}
+                          >
+                            <option value="">-- Select --</option>
+                            {#each robotBonusSkills as skill}
+                              <option value={skill.id}>{skill.name}</option>
+                            {/each}
+                          </select>
+                        {/if}
+                      {/if}
+
+                      <!-- Worker Bot: Attribute bonus picker -->
+                      {#if characterStore.draft.robotType === 'worker-bot'}
+                        <div class="mt-2">
+                          {#if characterStore.draft.robotAttributeBonus}
+                            <span class="text-xs text-green-400">
+                              Attribute bonus: +1 {ATTRIBUTE_OPTIONS.find(a => a.id === characterStore.draft.robotAttributeBonus)?.label} modifier
+                            </span>
+                          {:else}
+                            <p class="text-xs text-slate-400 mb-1">Choose attribute for +1 modifier bonus (max +2):</p>
+                            <select
+                              class="w-full px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded"
+                              onchange={(e) => {
+                                const val = (e.target as HTMLSelectElement).value;
+                                if (val) characterStore.draft.robotAttributeBonus = val;
+                              }}
+                            >
+                              <option value="">-- Select Attribute --</option>
+                              {#each ATTRIBUTE_OPTIONS as attr}
+                                <option value={attr.id}>{attr.label}</option>
+                              {/each}
+                            </select>
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
                   {/if}
                 </div>
               {/if}

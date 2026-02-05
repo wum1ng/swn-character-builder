@@ -428,6 +428,55 @@ export const ALIEN_FEATURES: AlienFeature[] = [
   }
 ];
 
+// Robot sub-types for Robot Player Character origin
+export interface RobotType {
+  id: string;
+  name: string;
+  description: string;
+  abilities: string[];
+}
+
+export const ROBOT_TYPES: RobotType[] = [
+  {
+    id: 'android',
+    name: 'Android',
+    description: 'You are externally indistinguishable from a baseline human without a medical examination. Your intended function determines your bonus skill. Minor damage does not reveal your nature, but dropping to 0 HP does.',
+    abilities: [
+      'Indistinguishable from human without medical examination',
+      'Choose a bonus skill related to your intended function',
+      'Minor damage does not reveal your nature',
+      'Reaching 0 HP reveals your robotic nature'
+    ]
+  },
+  {
+    id: 'worker-bot',
+    name: 'VI Worker Bot',
+    description: 'You are built for industrial or technical labor and are obviously inhuman in appearance. Your form is optimized for your intended work function.',
+    abilities: [
+      'Obviously inhuman in appearance',
+      'Choose a bonus skill related to your intended function',
+      'Choose one attribute associated with your work: +1 to its modifier (max +2)'
+    ]
+  },
+  {
+    id: 'vehicle-bot',
+    name: 'VI Vehicle Bot',
+    description: 'You are instantiated in a vehicle body such as a drone, hoverbike, or gravcar. You become the vehicle itself, retaining your attributes but gaining the vehicle\'s Armor score as your base AC.',
+    abilities: [
+      'Gain Pilot as a bonus skill',
+      'Choose a vehicle type — you become that vehicle',
+      'Base AC = vehicle Armor + Dex modifier',
+      'AC can be improved up to 3× Fix skill (1000 cr/point)',
+      'Use vehicle HP or character HP, whichever is higher',
+      'Can pilot a surrogate humanoid body as Main Action'
+    ]
+  }
+];
+
+export function getRobotTypeById(id: string): RobotType | undefined {
+  return ROBOT_TYPES.find(t => t.id === id);
+}
+
 // Origin Foci - require GM unlock
 export const ORIGIN_FOCI: Focus[] = [
   {

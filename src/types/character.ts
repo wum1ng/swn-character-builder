@@ -172,6 +172,8 @@ export interface Character {
   skills: SkillRank[];
   foci: { focusId: string; level: 1 | 2 }[];
   alienFeatures?: string[]; // IDs of selected alien features
+  robotType?: string; // 'android' | 'worker-bot' | 'vehicle-bot'
+  robotAttributeBonus?: string; // AttributeKey for Worker Bot +1 modifier bonus
 
   // Psychic (if applicable)
   psychicDisciplines?: string[];
@@ -230,6 +232,8 @@ export interface CharacterDraft {
   
   selectedFoci: { focusId: string; level: 1 | 2 }[];
   alienFeatures: string[]; // IDs of selected alien features for Alien Origin focus
+  robotType?: string; // 'android' | 'worker-bot' | 'vehicle-bot'
+  robotAttributeBonus?: string; // AttributeKey for Worker Bot +1 modifier bonus
 
   skills: SkillRank[];
   hobbySkill?: string;

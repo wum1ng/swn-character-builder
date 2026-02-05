@@ -462,6 +462,8 @@ class CharacterStore {
       skills: this.draft.skills,
       foci: this.draft.selectedFoci,
       alienFeatures: this.draft.alienFeatures.length > 0 ? this.draft.alienFeatures : undefined,
+      robotType: this.draft.robotType,
+      robotAttributeBonus: this.draft.robotAttributeBonus,
 
       psychicDisciplines: this.draft.psychicDisciplines,
       psychicTechniques: this.draft.psychicTechniques,
@@ -583,6 +585,9 @@ class CharacterStore {
       learningRolls: [],
       pickedSkills: [],
       selectedFoci: [...character.foci],
+      alienFeatures: character.alienFeatures || [],
+      robotType: character.robotType,
+      robotAttributeBonus: character.robotAttributeBonus,
       skills: [...character.skills],
       psychicDisciplines: character.psychicDisciplines || [],
       psychicTechniques: character.psychicTechniques || [],
