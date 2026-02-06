@@ -195,6 +195,9 @@ export interface Character {
   // Derived
   savingThrows: SavingThrows;
   
+  // Level-up history
+  levelUpHistory: LevelUpRecord[];
+
   // Metadata
   createdAt: string;
   updatedAt: string;
@@ -254,6 +257,18 @@ export interface CharacterDraft {
   employer: string;
   goals: string;
   notes: string;
+}
+
+export interface LevelUpRecord {
+  fromLevel: number;
+  toLevel: number;
+  hpRoll: number;        // raw die roll
+  hpGained: number;      // after modifiers, minimum 1
+  skillPointsSpent: { skillId: string; fromRank: number; toRank: number }[];
+  focusGained?: { focusId: string; level: 1 | 2 };
+  bonusFocusGained?: { focusId: string; level: 1 | 2 }; // warrior/expert bonus focus at even levels
+  techniqueGained?: string; // technique ID for psychics
+  timestamp: string;
 }
 
 // Utility types
