@@ -6,6 +6,8 @@ import { CLASSES, getAttackBonus } from '$data/classes';
 import { COMBAT_FOCI, NON_COMBAT_FOCI, getFocusById } from '$data/foci';
 import { SKILLS, NON_COMBAT_SKILLS, COMBAT_SKILLS, PSYCHIC_SKILLS } from '$data/skills';
 import { EQUIPMENT_PACKAGES, getEquipmentById, calculateAC } from '$data/equipment';
+import { syncService } from '$lib/syncService.svelte';
+import { authStore } from '$stores/auth.svelte';
 
 // Random name generator
 const FIRST_NAMES = [
@@ -671,12 +673,27 @@ class CharacterStore {
       this.error = null;
       await storageSet(`character-${character.id}`, character);
       this.savedCharacters = [...this.savedCharacters.filter(c => c.id !== character.id), character];
+
+      // Push to cloud if authenticated
+      if (authStore.isAuthenticated) {
+        syncService.pushCharacter(character);
+      }
     } catch (e) {
       this.error = 'Failed to save character';
       console.error(e);
       throw e;
     } finally {
       this.isLoading = false;
+    }
+  }
+
+  /** Save a character to local storage only (used by sync to avoid circular push) */
+  async saveCharacterLocal(character: Character) {
+    try {
+      await storageSet(`character-${character.id}`, character);
+      this.savedCharacters = [...this.savedCharacters.filter(c => c.id !== character.id), character];
+    } catch (e) {
+      console.error('Failed to save character locally:', e);
     }
   }
 
@@ -693,6 +710,14 @@ class CharacterStore {
       }
 
       this.savedCharacters = characters;
+
+      // Trigger sync if authenticated and online
+      if (authStore.isAuthenticated && typeof navigator !== 'undefined' && navigator.onLine) {
+        syncService.sync(this.savedCharacters, (char) => this.saveCharacterLocal(char)).then(() => {
+          // Reload after sync to reflect merged state
+          this.reloadFromStorage();
+        });
+      }
     } catch (e) {
       this.error = 'Failed to load characters';
       console.error(e);
@@ -701,10 +726,33 @@ class CharacterStore {
     }
   }
 
+  /** Reload characters from storage without triggering sync */
+  private async reloadFromStorage() {
+    try {
+      const allKeys = await storageKeys();
+      const characterKeys = allKeys.filter(k => k.startsWith('character-'));
+      const characters: Character[] = [];
+
+      for (const key of characterKeys) {
+        const char = await storageGet(key);
+        if (char) characters.push(migrateCharacter(char));
+      }
+
+      this.savedCharacters = characters;
+    } catch (e) {
+      console.error('Failed to reload characters:', e);
+    }
+  }
+
   async deleteCharacter(id: string) {
     try {
       await storageDel(`character-${id}`);
       this.savedCharacters = this.savedCharacters.filter(c => c.id !== id);
+
+      // Delete from cloud if authenticated
+      if (authStore.isAuthenticated) {
+        syncService.deleteFromCloud(id);
+      }
     } catch (e) {
       this.error = 'Failed to delete character';
       console.error(e);

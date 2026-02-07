@@ -15,6 +15,7 @@
   import { calculateAC } from '$data/equipment';
   import type { Character, CharacterJournal, AttributeKey, ClassName, PartialClass, InventoryItem } from '$types/character';
   import JournalTabs from '$lib/components/journal/JournalTabs.svelte';
+  import PDFExportModal from '$lib/components/PDFExportModal.svelte';
 
   type ViewMode = 'view' | 'edit' | 'levelup';
 
@@ -23,6 +24,7 @@
   let error = $state<string | null>(null);
   let copySuccess = $state(false);
   let showDeleteConfirm = $state(false);
+  let showPDFExport = $state(false);
   let viewMode = $state<ViewMode>('view');
   let editedCharacter = $state<Character | null>(null);
   let saveError = $state<string | null>(null);
@@ -730,6 +732,13 @@
             </svg>
             Print
           </button>
+          <button onclick={() => showPDFExport = true} class="btn btn-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            Export PDF
+          </button>
           <button
             onclick={() => showDeleteConfirm = true}
             class="btn btn-ghost text-red-400"
@@ -1009,3 +1018,12 @@
   {/if}
   {/if}
 </div>
+
+<!-- PDF Export Modal -->
+{#if showPDFExport && character}
+  <PDFExportModal
+    {character}
+    isOpen={showPDFExport}
+    onClose={() => showPDFExport = false}
+  />
+{/if}
