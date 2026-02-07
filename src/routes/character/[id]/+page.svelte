@@ -13,7 +13,8 @@
   import InventoryManager from '$lib/components/InventoryManager.svelte';
   import LevelUpWizard from '$lib/components/LevelUpWizard.svelte';
   import { calculateAC } from '$data/equipment';
-  import type { Character, AttributeKey, ClassName, PartialClass, InventoryItem } from '$types/character';
+  import type { Character, CharacterJournal, AttributeKey, ClassName, PartialClass, InventoryItem } from '$types/character';
+  import JournalTabs from '$lib/components/journal/JournalTabs.svelte';
 
   type ViewMode = 'view' | 'edit' | 'levelup';
 
@@ -241,6 +242,14 @@
   async function updateExperience(delta: number) {
     if (!character) return;
     character.experience = Math.max(0, character.experience + delta);
+    character.updatedAt = new Date().toISOString();
+    await characterStore.saveCharacter(character);
+  }
+
+  async function handleJournalUpdate(updated: CharacterJournal) {
+    if (!character) return;
+    character.journal = JSON.parse(JSON.stringify(updated));
+    character.notes = updated.generalNotes;
     character.updatedAt = new Date().toISOString();
     await characterStore.saveCharacter(character);
   }
@@ -648,65 +657,11 @@
       <!-- Inventory -->
       <InventoryManager {character} onUpdate={handleInventoryUpdate} />
 
-      <!-- Journal Summary -->
+      <!-- Journal -->
       {#if character.journal}
-        {@const jrnl = character.journal}
-        {@const activeQuests = jrnl.quests.filter(q => q.status === 'active')}
-        {@const recentSession = [...jrnl.sessionLog].sort((a, b) => b.sessionNumber - a.sessionNumber)[0]}
         <div class="card p-4">
           <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Journal</h4>
-
-          <!-- Stats row -->
-          <div class="grid grid-cols-3 gap-3 text-center mb-4">
-            <div>
-              <div class="text-lg font-display text-white">{jrnl.sessionLog.length}</div>
-              <div class="text-[10px] text-slate-500 uppercase">Sessions</div>
-            </div>
-            <div>
-              <div class="text-lg font-display text-white">{jrnl.npcs.length}</div>
-              <div class="text-[10px] text-slate-500 uppercase">NPCs</div>
-            </div>
-            <div>
-              <div class="text-lg font-display text-white">{activeQuests.length}</div>
-              <div class="text-[10px] text-slate-500 uppercase">Active Quests</div>
-            </div>
-          </div>
-
-          <!-- Most recent session -->
-          {#if recentSession}
-            <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 mb-3">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-[10px] font-display text-cyan-400">Latest: Session #{recentSession.sessionNumber}</span>
-                <span class="text-[10px] text-slate-600">{new Date(recentSession.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-              </div>
-              <div class="text-sm text-white">{recentSession.title || 'Untitled Session'}</div>
-              {#if recentSession.content}
-                <p class="text-xs text-slate-400 mt-1 line-clamp-2">{recentSession.content}</p>
-              {/if}
-            </div>
-          {/if}
-
-          <!-- Active quests list -->
-          {#if activeQuests.length > 0}
-            <div>
-              <div class="text-[10px] text-slate-500 uppercase mb-2">Active Quests</div>
-              <div class="space-y-1">
-                {#each activeQuests as quest}
-                  <div class="flex items-center gap-2 text-sm">
-                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
-                    <span class="text-slate-300">{quest.title || 'Untitled Quest'}</span>
-                    {#if quest.reward}
-                      <span class="text-[10px] text-yellow-400/70 ml-auto">{quest.reward}</span>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-
-          {#if jrnl.sessionLog.length === 0 && jrnl.npcs.length === 0 && jrnl.quests.length === 0}
-            <p class="text-sm text-slate-600 italic text-center">No journal entries yet. Use Play Mode to start tracking sessions, NPCs, and quests.</p>
-          {/if}
+          <JournalTabs journal={character.journal} onUpdate={handleJournalUpdate} />
         </div>
       {/if}
 
