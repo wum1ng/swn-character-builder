@@ -45,7 +45,8 @@
   const currentStepIndex = $derived(steps.indexOf(currentStep));
 
   // HP state
-  let hpRoll = $state<number | null>(null);
+  let hpRolls = $state<number[] | null>(null);
+  let hpTotal = $state<number | null>(null);
   let hpGained = $state<number | null>(null);
   let isRolling = $state(false);
 
@@ -206,7 +207,8 @@
     isRolling = true;
     const result = characterStore.rollLevelUpHP(character);
     setTimeout(() => {
-      hpRoll = result.roll;
+      hpRolls = result.rolls;
+      hpTotal = result.total;
       hpGained = result.gained;
       isRolling = false;
     }, 500);
@@ -315,7 +317,7 @@
     const record: LevelUpRecord = {
       fromLevel: character.level,
       toLevel: newLevel,
-      hpRoll: hpRoll!,
+      hpRoll: hpRolls!.reduce((s, r) => s + r, 0),
       hpGained: hpGained!,
       skillPointsSpent: Array.from(skillChanges.entries()).map(([skillId, c]) => ({
         skillId,
@@ -382,7 +384,7 @@
           <div class="text-2xl">&#x2764;</div>
           <div>
             <div class="text-white">Hit Points</div>
-            <div class="text-slate-400">Roll {character.classId === 'warrior' ? '1d6+2' : '1d6'} + CON mod ({formatModifier(getAttributeModifier(character.attributes.constitution))})</div>
+            <div class="text-slate-400">Roll {newLevel}d6 + modifiers for all {newLevel} levels, keep if higher than current {character.hitPointsMax} HP (otherwise +1)</div>
           </div>
         </div>
         <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50">
@@ -437,13 +439,8 @@
     <div class="card p-6 space-y-4">
       <h3 class="font-display text-lg tracking-wider text-white">Roll Hit Points</h3>
       <p class="text-sm text-slate-400">
-        Roll {character.classId === 'warrior' ? '1d6+2' : '1d6'} + CON modifier ({formatModifier(getAttributeModifier(character.attributes.constitution))})
-        {#if character.foci.some(f => f.focusId === 'die-hard')}
-          + 2 (Die Hard)
-        {/if}
-        {#if character.classId === 'adventurer' && character.partialClasses?.includes('partial-warrior')}
-          + 1 (Partial Warrior)
-        {/if}
+        Roll {newLevel}d6 for all {newLevel} levels, plus per-level modifiers.
+        If the total beats your current {character.hitPointsMax} HP, use the new total. Otherwise, HP goes up by 1.
       </p>
 
       {#if hpGained === null}
@@ -452,7 +449,7 @@
             {#if isRolling}
               <span class="dice-rolling inline-block">&#x1F3B2;</span> Rolling...
             {:else}
-              &#x1F3B2; Roll HP
+              &#x1F3B2; Roll {newLevel}d6
             {/if}
           </button>
         </div>
@@ -461,17 +458,35 @@
           <div class="text-6xl font-display text-cyan-400 dice-rolling">
             +{hpGained}
           </div>
+          <div class="flex flex-wrap justify-center gap-2 mb-2">
+            {#each hpRolls! as roll}
+              <span class="w-8 h-8 flex items-center justify-center rounded bg-slate-700 text-white font-display text-sm">{roll}</span>
+            {/each}
+          </div>
           <div class="text-sm text-slate-400">
-            Die roll: {hpRoll}
-            {#if character.classId === 'warrior'}+ 2 (Warrior){/if}
-            {#if character.classId === 'adventurer' && character.partialClasses?.includes('partial-warrior')}+ 1 (Partial Warrior){/if}
-            + {formatModifier(getAttributeModifier(character.attributes.constitution))} (CON)
-            {#if character.foci.some(f => f.focusId === 'die-hard')}+ 2 (Die Hard){/if}
+            Dice: {hpRolls!.join(' + ')} = {hpRolls!.reduce((s, r) => s + r, 0)}
+          </div>
+          <div class="text-xs text-slate-500">
+            Per-level bonus: {formatModifier(getAttributeModifier(character.attributes.constitution))} CON
+            {#if character.classId === 'warrior'}+ 2 Warrior{/if}
+            {#if character.classId === 'adventurer' && character.partialClasses?.includes('partial-warrior')}+ 1 Partial Warrior{/if}
+            {#if character.foci.some(f => f.focusId === 'die-hard')}+ 2 Die Hard{/if}
+            &times; {newLevel} levels
+          </div>
+          <div class="text-sm text-slate-300">
+            Total rolled: <span class="text-white font-display">{hpTotal}</span>
+            vs current max: <span class="text-white font-display">{character.hitPointsMax}</span>
+            &rarr;
+            {#if hpTotal! > character.hitPointsMax}
+              <span class="text-green-400">Higher! New max HP = {hpTotal}</span>
+            {:else}
+              <span class="text-yellow-400">Not higher, +1 HP</span>
+            {/if}
           </div>
           <div class="text-white">
             HP: {character.hitPointsMax} &rarr; <span class="text-green-400 font-display">{character.hitPointsMax + hpGained}</span>
           </div>
-          <button onclick={() => { hpRoll = null; hpGained = null; }} class="btn btn-ghost text-xs">
+          <button onclick={() => { hpRolls = null; hpTotal = null; hpGained = null; }} class="btn btn-ghost text-xs">
             Reroll
           </button>
         </div>

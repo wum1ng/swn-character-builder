@@ -558,31 +558,32 @@ class CharacterStore {
     return character.experience >= character.level * 3;
   }
 
-  /** Roll HP for a level-up */
-  rollLevelUpHP(character: Character): { roll: number; gained: number } {
+  /** Roll HP for a level-up (SWN rules: roll ALL dice equal to new level, compare to old max) */
+  rollLevelUpHP(character: Character): { rolls: number[]; total: number; gained: number } {
+    const newLevel = character.level + 1;
     const conMod = getAttributeModifier(character.attributes.constitution);
-    const roll = Math.floor(Math.random() * 6) + 1;
-    let hp = roll + conMod;
 
-    // Warrior gets 1d6+2
-    if (character.classId === 'warrior') {
-      hp += 2;
+    // Roll newLevel d6
+    const rolls: number[] = [];
+    for (let i = 0; i < newLevel; i++) {
+      rolls.push(Math.floor(Math.random() * 6) + 1);
     }
+    const diceTotal = rolls.reduce((sum, r) => sum + r, 0);
 
-    // Partial Warrior gets +1 per level (applied as flat bonus)
-    if (character.classId === 'adventurer' && character.partialClasses?.includes('partial-warrior')) {
-      hp += 1;
-    }
+    // Per-level bonuses applied for each level
+    let perLevelBonus = conMod;
+    if (character.classId === 'warrior') perLevelBonus += 2;
+    if (character.classId === 'adventurer' && character.partialClasses?.includes('partial-warrior')) perLevelBonus += 1;
+    if (character.foci.some(f => f.focusId === 'die-hard')) perLevelBonus += 2;
 
-    // Die Hard focus: +2 per level
-    if (character.foci.some(f => f.focusId === 'die-hard')) {
-      hp += 2;
-    }
+    const total = diceTotal + (perLevelBonus * newLevel);
 
-    // Minimum 1 HP gained per level
-    hp = Math.max(1, hp);
+    // Compare to current max HP: take the higher, or +1 if rolled lower
+    const gained = total > character.hitPointsMax
+      ? total - character.hitPointsMax
+      : 1;
 
-    return { roll, gained: hp };
+    return { rolls, total, gained };
   }
 
   /** Recalculate all derived stats on a character (after level-up) */
