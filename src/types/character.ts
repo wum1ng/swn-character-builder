@@ -198,6 +198,9 @@ export interface Character {
   // Level-up history
   levelUpHistory: LevelUpRecord[];
 
+  // Journal
+  journal: CharacterJournal;
+
   // Metadata
   createdAt: string;
   updatedAt: string;
@@ -269,6 +272,51 @@ export interface LevelUpRecord {
   bonusFocusGained?: { focusId: string; level: 1 | 2 }; // warrior/expert bonus focus at even levels
   techniqueGained?: string; // technique ID for psychics
   timestamp: string;
+}
+
+// Journal types
+export interface SessionLogEntry {
+  id: string;
+  sessionNumber: number;
+  date: string;
+  title: string;
+  content: string;
+  xpGained?: number;
+  creditsGained?: number;
+  lootGained?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NPCEntry {
+  id: string;
+  name: string;
+  faction?: string;
+  location?: string;
+  disposition: 'friendly' | 'neutral' | 'hostile' | 'unknown';
+  description: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuestEntry {
+  id: string;
+  title: string;
+  description: string;
+  status: 'active' | 'completed' | 'failed' | 'abandoned';
+  giverNpcId?: string;
+  reward?: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CharacterJournal {
+  sessionLog: SessionLogEntry[];
+  npcs: NPCEntry[];
+  quests: QuestEntry[];
+  generalNotes: string;
 }
 
 // Utility types

@@ -1,5 +1,5 @@
 import { get, set, del, keys } from 'idb-keyval';
-import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName, InventoryItem, LevelUpRecord } from '$types/character';
+import type { Character, CharacterDraft, CreationStep, Attributes, AttributeKey, SkillRank, ClassName, InventoryItem, LevelUpRecord, CharacterJournal } from '$types/character';
 import { rollAllAttributes, createEmptyAttributes, getAttributeModifier, STANDARD_ARRAY } from '$data/attributes';
 import { BACKGROUNDS, getBackgroundById } from '$data/backgrounds';
 import { CLASSES, getAttackBonus } from '$data/classes';
@@ -135,6 +135,14 @@ function migrateCharacter(char: Character): Character {
   }
   if (!char.levelUpHistory) {
     char.levelUpHistory = [];
+  }
+  if (!char.journal) {
+    char.journal = {
+      sessionLog: [],
+      npcs: [],
+      quests: [],
+      generalNotes: char.notes || ''
+    };
   }
   return char;
 }
@@ -496,6 +504,13 @@ class CharacterStore {
       },
 
       levelUpHistory: existingChar?.levelUpHistory || [],
+
+      journal: existingChar?.journal || {
+        sessionLog: [],
+        npcs: [],
+        quests: [],
+        generalNotes: this.draft.notes || ''
+      },
 
       createdAt: existingChar?.createdAt || now,
       updatedAt: now
