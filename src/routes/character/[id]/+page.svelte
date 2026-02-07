@@ -122,6 +122,42 @@
     ];
     if (char.homeworld) lines.push(``, `Homeworld: ${char.homeworld}`);
     if (char.goals) lines.push(`Goals: ${char.goals}`);
+
+    // Journal data
+    if (char.journal) {
+      const j = char.journal;
+      if (j.sessionLog.length > 0) {
+        lines.push(``, `--- SESSION LOG ---`);
+        for (const s of [...j.sessionLog].sort((a, b) => a.sessionNumber - b.sessionNumber)) {
+          lines.push(`Session ${s.sessionNumber} (${s.date}): ${s.title || 'Untitled'}`);
+          if (s.xpGained || s.creditsGained) {
+            const parts: string[] = [];
+            if (s.xpGained) parts.push(`XP: +${s.xpGained}`);
+            if (s.creditsGained) parts.push(`Credits: +${s.creditsGained}`);
+            lines.push(`  ${parts.join(', ')}`);
+          }
+          if (s.content) lines.push(`  ${s.content.split('\n').join('\n  ')}`);
+        }
+      }
+      if (j.npcs.length > 0) {
+        lines.push(``, `--- NPCs ---`);
+        for (const n of j.npcs) {
+          const disp = n.disposition.charAt(0).toUpperCase() + n.disposition.slice(1);
+          lines.push(`- ${n.name}${n.faction ? ` (${n.faction})` : ''} - ${disp}`);
+          if (n.description) lines.push(`  ${n.description}`);
+        }
+      }
+      const activeQuests = j.quests.filter(q => q.status === 'active');
+      if (activeQuests.length > 0) {
+        lines.push(``, `--- ACTIVE QUESTS ---`);
+        for (const q of activeQuests) {
+          lines.push(`- [Active] ${q.title || 'Untitled'}`);
+          if (q.reward) lines.push(`  Reward: ${q.reward}`);
+          if (q.description) lines.push(`  ${q.description}`);
+        }
+      }
+    }
+
     return lines.join('\n');
   }
 
@@ -611,6 +647,68 @@
 
       <!-- Inventory -->
       <InventoryManager {character} onUpdate={handleInventoryUpdate} />
+
+      <!-- Journal Summary -->
+      {#if character.journal}
+        {@const jrnl = character.journal}
+        {@const activeQuests = jrnl.quests.filter(q => q.status === 'active')}
+        {@const recentSession = [...jrnl.sessionLog].sort((a, b) => b.sessionNumber - a.sessionNumber)[0]}
+        <div class="card p-4">
+          <h4 class="font-display text-sm tracking-wider text-cyan-400 mb-4">Journal</h4>
+
+          <!-- Stats row -->
+          <div class="grid grid-cols-3 gap-3 text-center mb-4">
+            <div>
+              <div class="text-lg font-display text-white">{jrnl.sessionLog.length}</div>
+              <div class="text-[10px] text-slate-500 uppercase">Sessions</div>
+            </div>
+            <div>
+              <div class="text-lg font-display text-white">{jrnl.npcs.length}</div>
+              <div class="text-[10px] text-slate-500 uppercase">NPCs</div>
+            </div>
+            <div>
+              <div class="text-lg font-display text-white">{activeQuests.length}</div>
+              <div class="text-[10px] text-slate-500 uppercase">Active Quests</div>
+            </div>
+          </div>
+
+          <!-- Most recent session -->
+          {#if recentSession}
+            <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 mb-3">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] font-display text-cyan-400">Latest: Session #{recentSession.sessionNumber}</span>
+                <span class="text-[10px] text-slate-600">{new Date(recentSession.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+              </div>
+              <div class="text-sm text-white">{recentSession.title || 'Untitled Session'}</div>
+              {#if recentSession.content}
+                <p class="text-xs text-slate-400 mt-1 line-clamp-2">{recentSession.content}</p>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Active quests list -->
+          {#if activeQuests.length > 0}
+            <div>
+              <div class="text-[10px] text-slate-500 uppercase mb-2">Active Quests</div>
+              <div class="space-y-1">
+                {#each activeQuests as quest}
+                  <div class="flex items-center gap-2 text-sm">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
+                    <span class="text-slate-300">{quest.title || 'Untitled Quest'}</span>
+                    {#if quest.reward}
+                      <span class="text-[10px] text-yellow-400/70 ml-auto">{quest.reward}</span>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if jrnl.sessionLog.length === 0 && jrnl.npcs.length === 0 && jrnl.quests.length === 0}
+            <p class="text-sm text-slate-600 italic text-center">No journal entries yet. Use Play Mode to start tracking sessions, NPCs, and quests.</p>
+          {/if}
+        </div>
+      {/if}
 
       <!-- Character Info -->
       {#if character.homeworld || character.species || character.employer || character.goals || character.notes}

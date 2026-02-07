@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Character, InventoryItem, ItemLocation } from '$types/character';
+  import type { Character, CharacterJournal, InventoryItem, ItemLocation } from '$types/character';
   import { characterStore } from '$stores/character.svelte';
   import { getEquipmentById, ALL_EQUIPMENT, calculateAC, type EquipmentItem } from '$data/equipment';
   import { getAttributeModifier, formatModifier, ATTRIBUTE_NAMES } from '$data/attributes';
@@ -8,6 +8,7 @@
   import { getClassById } from '$data/classes';
   import { getBackgroundById } from '$data/backgrounds';
   import type { AttributeKey } from '$types/character';
+  import JournalTabs from './journal/JournalTabs.svelte';
 
   interface Props {
     character: Character;
@@ -23,8 +24,11 @@
   let effortMax = $state(character.effortMax ?? 0);
   let inventory = $state<InventoryItem[]>(JSON.parse(JSON.stringify(character.inventory || [])));
   let credits = $state(character.credits);
-  let notes = $state(character.notes || '');
+  let journal = $state<CharacterJournal>(
+    character.journal || { sessionLog: [], npcs: [], quests: [], generalNotes: character.notes || '' }
+  );
   let hpDelta = $state('');
+  let showQuickAdd = $state(false);
   let experience = $state(character.experience);
 
   // XP tracking
@@ -88,7 +92,8 @@
     character.effortMax = effortMax;
     character.inventory = JSON.parse(JSON.stringify(inventory));
     character.credits = credits;
-    character.notes = notes;
+    character.journal = JSON.parse(JSON.stringify(journal));
+    character.notes = journal.generalNotes;
     character.experience = experience;
     character.armorClass = computedAC;
     character.updatedAt = new Date().toISOString();
@@ -176,6 +181,68 @@
 
   const charClass = $derived(getClassById(character.classId));
   const background = $derived(getBackgroundById(character.backgroundId));
+
+  function handleJournalUpdate(updated: CharacterJournal) {
+    journal = updated;
+    save();
+  }
+
+  function quickAddSession() {
+    const nextNumber = journal.sessionLog.length > 0
+      ? Math.max(...journal.sessionLog.map(e => e.sessionNumber)) + 1
+      : 1;
+    const now = new Date().toISOString();
+    journal = {
+      ...journal,
+      sessionLog: [...journal.sessionLog, {
+        id: crypto.randomUUID(),
+        sessionNumber: nextNumber,
+        date: now.split('T')[0],
+        title: '',
+        content: '',
+        createdAt: now,
+        updatedAt: now
+      }]
+    };
+    save();
+    showQuickAdd = false;
+  }
+
+  function quickAddNPC() {
+    const now = new Date().toISOString();
+    journal = {
+      ...journal,
+      npcs: [...journal.npcs, {
+        id: crypto.randomUUID(),
+        name: '',
+        disposition: 'unknown' as const,
+        description: '',
+        notes: '',
+        createdAt: now,
+        updatedAt: now
+      }]
+    };
+    save();
+    showQuickAdd = false;
+  }
+
+  function quickAddQuest() {
+    const now = new Date().toISOString();
+    journal = {
+      ...journal,
+      quests: [...journal.quests, {
+        id: crypto.randomUUID(),
+        title: '',
+        description: '',
+        status: 'active' as const,
+        notes: '',
+        createdAt: now,
+        updatedAt: now
+      }]
+    };
+    save();
+    showQuickAdd = false;
+  }
 </script>
 
 <div class="space-y-4">
@@ -542,15 +609,32 @@
     </div>
   {/if}
 
-  <!-- Session Notes -->
+  <!-- Quick Add -->
+  <div class="relative">
+    <button
+      onclick={() => showQuickAdd = !showQuickAdd}
+      class="btn text-xs px-3 py-2 w-full {showQuickAdd ? 'bg-slate-700 text-slate-300' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}"
+    >
+      {showQuickAdd ? 'Close' : '+ Quick Add'}
+    </button>
+    {#if showQuickAdd}
+      <div class="mt-2 grid grid-cols-3 gap-2">
+        <button onclick={quickAddSession} class="btn text-[10px] px-2 py-2 bg-slate-700 hover:bg-slate-600 text-cyan-400">
+          Session
+        </button>
+        <button onclick={quickAddNPC} class="btn text-[10px] px-2 py-2 bg-slate-700 hover:bg-slate-600 text-green-400">
+          NPC
+        </button>
+        <button onclick={quickAddQuest} class="btn text-[10px] px-2 py-2 bg-slate-700 hover:bg-slate-600 text-purple-400">
+          Quest
+        </button>
+      </div>
+    {/if}
+  </div>
+
+  <!-- Journal -->
   <div class="card p-3">
-    <h4 class="font-display text-xs tracking-wider text-cyan-400 mb-2">Notes</h4>
-    <textarea
-      bind:value={notes}
-      onblur={() => save()}
-      rows="3"
-      placeholder="Session notes..."
-      class="input text-sm w-full"
-    ></textarea>
+    <h4 class="font-display text-xs tracking-wider text-cyan-400 mb-2">Journal</h4>
+    <JournalTabs {journal} onUpdate={handleJournalUpdate} />
   </div>
 </div>
