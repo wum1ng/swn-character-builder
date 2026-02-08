@@ -21,8 +21,11 @@ export async function generateCharacterPDF(
   sheetElement: HTMLElement,
   options: PDFExportOptions
 ): Promise<Blob> {
+  const margin = 5; // mm
   const pageWidth = options.pageSize === 'letter' ? 215.9 : 210;
   const pageHeight = options.pageSize === 'letter' ? 279.4 : 297;
+  const contentWidth = pageWidth - margin * 2;
+  const contentPageHeight = pageHeight - margin * 2;
 
   const scale = options.quality === 'high' ? 3 : options.quality === 'standard' ? 2 : 1;
 
@@ -41,15 +44,16 @@ export async function generateCharacterPDF(
     format: options.pageSize
   });
 
-  const imgData = canvas.toDataURL('image/png');
-  const contentWidth = pageWidth;
-  const contentHeight = (canvas.height * contentWidth) / canvas.width;
+  // Use JPEG to avoid PNG signature errors in jsPDF
+  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  const imgHeight = (canvas.height * contentWidth) / canvas.width;
 
-  if (contentHeight <= pageHeight) {
-    pdf.addImage(imgData, 'PNG', 0, 0, contentWidth, contentHeight);
+  if (imgHeight <= contentPageHeight) {
+    // Single page
+    pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, imgHeight);
   } else {
     // Multi-page: slice the canvas into page-sized chunks
-    const pxPerPage = (pageHeight / contentHeight) * canvas.height;
+    const pxPerPage = (contentPageHeight / imgHeight) * canvas.height;
     let yOffset = 0;
     let pageNum = 0;
 
@@ -65,6 +69,8 @@ export async function generateCharacterPDF(
 
       const ctx = pageCanvas.getContext('2d');
       if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
         ctx.drawImage(
           canvas,
           0, yOffset,
@@ -74,10 +80,9 @@ export async function generateCharacterPDF(
         );
       }
 
-      const pageImgData = pageCanvas.toDataURL('image/png');
-      const sliceRatio = sliceHeight / canvas.height;
-      const slicePageHeight = contentHeight * sliceRatio;
-      pdf.addImage(pageImgData, 'PNG', 0, 0, contentWidth, slicePageHeight);
+      const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+      const sliceImgHeight = (sliceHeight * contentWidth) / canvas.width;
+      pdf.addImage(pageImgData, 'JPEG', margin, margin, contentWidth, sliceImgHeight);
 
       yOffset += pxPerPage;
       pageNum++;
