@@ -1,0 +1,16 @@
+{
+  "name": "SWN Character Builder",
+  "short_name": "SWN Builder",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070b14",
+  "theme_color": "#38bdf8",
+  "description": "Stars Without Number character creation web app",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
