@@ -242,43 +242,4 @@
       <a href="{base}/create" class="btn btn-primary">Create Character</a>
     </section>
   {/if}
-  
-  <!-- Features -->
-  <section class="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-    <div class="card p-6">
-      <div class="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-4">
-        <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      </div>
-      <h3 class="font-display text-lg tracking-wider mb-2">Lightning Fast</h3>
-      <p class="text-sm text-slate-400">
-        Built with Svelte 5 for instant reactivity. No virtual DOM, no waiting.
-      </p>
-    </div>
-    
-    <div class="card p-6">
-      <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center mb-4">
-        <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
-      </div>
-      <h3 class="font-display text-lg tracking-wider mb-2">Mobile First</h3>
-      <p class="text-sm text-slate-400">
-        Works perfectly on phones, tablets, and desktops. Touch-friendly controls.
-      </p>
-    </div>
-    
-    <div class="card p-6">
-      <div class="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center mb-4">
-        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-        </svg>
-      </div>
-      <h3 class="font-display text-lg tracking-wider mb-2">Offline Ready</h3>
-      <p class="text-sm text-slate-400">
-        Characters saved locally. Create anywhere, even without internet.
-      </p>
-    </div>
-  </section>
 </div>
